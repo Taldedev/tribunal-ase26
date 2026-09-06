@@ -234,9 +234,21 @@ we hit them.
    character description and after it.
 5. **A charge sheet may lack its question**, in which case nothing is being
    asked and the run should not start.
-6. **A model call may time out.** The platform kills a serverless function
-   around 30s, so abort upstream at 24s and return JSON — otherwise the client
-   receives HTML and reports a parse error instead of a timeout.
+6. **A model call may time out, and the obvious guard against it does not
+   work.** The platform kills a serverless function around 30s, so the upstream
+   call is cut off at 24s and answered in JSON — otherwise the client receives
+   the platform's own error page and reports a parse error instead of a
+   timeout.
+
+   **Aborting the request is not enough, and it took a live reasoning model to
+   discover that.** `fetch` resolves when the *headers* arrive, and a reasoning
+   model sends them at once and then thinks. Instrumented: headers at 794ms,
+   the abort firing exactly on schedule at 24,001ms, and `upstream.text()` then
+   neither resolving nor rejecting — it waited until the platform killed the
+   function at 30s. **An `AbortController` does not interrupt a body read that
+   has already begun.** Both halves of the call have to be *raced* against the
+   deadline, and the deadline has to be one budget for the whole handler rather
+   than one per attempt, or the cache-breakpoint retry turns 24s into 48.
 7. **The catalogue contains models that list text output and answer with
    audio.** Filter on `output_modalities` being exactly `["text"]`.
 8. **Router models** (`architecture.tokenizer === "Router"`) silently pick a
@@ -376,9 +388,24 @@ argument for the method.
     inside a run" and then "much more on a second run" - were argument rather
     than measurement.
 
-    What stands: the prefix is identical and first, which is the part this
-    project controls; how much any provider does with that is a fact about the
-    provider, and the bill reports it per run rather than claiming it.
+    **A third measurement, and it broke the pattern again.** Arrangement B,
+    with four speakers sharing one model and the judges on three:
+
+    | run | prompt tokens | from cache | share |
+    |---|---|---|---|
+    | A, fresh sheet | 20,076 | 896 | 4.5% |
+    | A, same sheet, minutes later | 20,787 | 916 | 4.4% |
+    | B, same sheet, ten minutes later | 13,256 | 5,154 | **39%** |
+
+    So it is not flat either. The figure moves with the provider, the load,
+    what it has recently seen, and how the seats are distributed, and three
+    runs is not a sample.
+
+    What stands is the part this project controls: the prefix is identical and
+    it is first. How much any provider does with that is a fact about the
+    provider, measured per run and shown on the bill — which is why the bill
+    reports it rather than the README promising it. **Stop predicting this
+    number.** Two predictions have been made here and both were wrong.
 
     **This is not a reason to serialise the waves.** Wall-clock time is the
     thing the user waits for, the tokens are counted either way, and on free
