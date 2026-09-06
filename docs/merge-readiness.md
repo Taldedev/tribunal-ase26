@@ -181,11 +181,23 @@ first row below.
 | **The two failures do not wear each other's clothes** | On the same run, Past cases said *"Past cases could not be read… this list cannot say whether there are any"* rather than "No case has been heard yet". An unreachable record is not an empty one, and the panel distinguishes them |
 | **And the record recovers** | Restarting with the real configuration: `/api/cases` back to 200, the three earlier cases still there. The failure was in the configuration, not in the data |
 
+### Verified against the deployed site
+
+<https://majestic-kleicha-f115c0.netlify.app/> — openable by anyone, serving the
+merged `main`.
+
+| What | Evidence |
+|---|---|
+| **The deployment serves this work** | The served bundle contains `/api/cases`, `From cache` and `was not recorded`, and no longer contains `tribunaldb` — the four markers that told the earlier deployment apart from the import commit. `/api/openrouter` answers *"A shared record and a user segment are both required"* to the old `system`/`user` payload, which is the post-caching contract refusing the pre-caching one |
+| **All three environment variables are right** | `/api/account` returns live account data — free tier, 50 requests a day — instead of *"Missing Authentication header"*. `/api/cases` returns JSON from Supabase instead of the SPA's HTML |
+| **A case written by one browser reads back in another (S20, fully)** | `GET /api/cases` on the deployed site returns all three deliberations written from a local browser on a different machine: the arrangement, the label `T-001 · Jon Snow`, the three verdicts, and the cached-token figure for each. A different client, a different machine, the same record |
+| **S9 against the artefact people actually download** | The credential patterns in `security-patterns.yaml`, run over the JavaScript the live site serves: no match. No `supabase.co` host in it either. Previously this criterion was only ever checked against a local `dist/` |
+| **The gate on `main` itself** | `gate  success  d2d7226c` — the suite, the build and the full-history credential scan, run on the merge commit rather than only on the branch |
+
 ### Still unchecked
 
 | What | Why it is unchecked | Who checks it |
 |---|---|---|
-| **A case read back in a second browser** | The listing is proven through the function; a case written by one browser and read by another is not | open the site in a second browser |
 | **Arrangement B, and the comparison** | Both runs were arrangement A. B needs seven models that all answer, and 2 of 4 free models answered when pinged — so this is a real cost in requests, not a formality | pick seven, use Test these models, then Compare |
 | **A non-zero `cachedTokens` on a real call** | Needs a live model call. The plumbing is tested; whether any chosen provider actually serves the prefix from cache is a fact about that provider, not about this code | run the same charge sheet twice and read The bill |
 | **The cache breakpoint being refused, and the retry** | Pitfall 22 is a prediction. No provider has yet rejected it here | first live run against a provider that does |
