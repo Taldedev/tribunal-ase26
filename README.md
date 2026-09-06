@@ -151,6 +151,8 @@ where it belongs.
 
 ## The case
 
+Live at **<https://majestic-kleicha-f115c0.netlify.app/>**.
+
 **Case T-001, The Realm v. Jon Snow**, is the canonical charge sheet from the
 course's case design dossier and ships as the worked example. It carries the
 dossier's *agreed factual record* — five facts both sides must work with, two

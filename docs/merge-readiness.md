@@ -190,6 +190,7 @@ first row below.
 | **A non-zero `cachedTokens` on a real call** | Needs a live model call. The plumbing is tested; whether any chosen provider actually serves the prefix from cache is a fact about that provider, not about this code | run the same charge sheet twice and read The bill |
 | **The cache breakpoint being refused, and the retry** | Pitfall 22 is a prediction. No provider has yet rejected it here | first live run against a provider that does |
 | **CI passing** | The repository has not been pushed | GitHub, on the first push |
+| **The deployed site being openable at all** | It answers **401** on every path, including `/api/*`, with Netlify's own login-redirect page. The site is gated to the team, which is step 5 of the README's own deploy list and the one that makes a hosted app look broken when it is merely private. Nothing about the deployment can be verified from outside until this changes | Netlify → Site configuration → **Access & security → Visitor access → Public** |
 | **CI refusing a merge** | Branch protection is a setting in GitHub, not a file here. Until it is set, CI reports and does not block | Settings → Branches → protect `main` → require the `gate` check |
 
 ## The judging act

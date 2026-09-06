@@ -55,7 +55,10 @@ Two arrangements are compared: **A**, one model for all seven seats, and **B**,
 a separate model per seat. The comparison is the point of the project — three
 judges on one model share that model's blind spot.
 
-Deployed at `tribunallm.netlify.app`.
+Deployed at `majestic-kleicha-f115c0.netlify.app`.
+
+`tribunallm.netlify.app` is the original two-person project this one is built
+from, on a different Netlify account. Not this site.
 
 ## Commands
 
