@@ -75,8 +75,15 @@ back to a default answer. An empty seat is reported as an empty seat.
 **Costs.** Seven calls, roughly 16,000–17,000 tokens per deliberation. The
 judges dominate: each reads the charge sheet plus all four speeches, so judge
 prompts run several times the size of speaker prompts. Cost grows faster than
-the agent count for exactly that reason. Parallelism saves time and saves no
-tokens at all.
+the agent count for exactly that reason.
+
+**Parallelism saves time and saves no tokens at all.** The prompt structure is
+what saves tokens, and it saves them in the same place the cost is: the three
+judges read the identical record, so that record is sent as a shared prefix
+and a provider that caches prefixes charges for it once rather than three
+times. The four representatives share a smaller one. `cachedTokens` on each
+call is the evidence, and a run that reports zero of it saved nothing whatever
+this paragraph claims.
 
 On free models the dollar cost is zero and the real currency is **requests per
 day** — seven per run against an allowance of about 50, so roughly seven runs

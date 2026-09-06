@@ -26,17 +26,21 @@ problem admits.
 
 | Who | What they need from it |
 |---|---|
-| **The person putting the case** | To see disagreement, not a summary. To be told when the panel failed rather than shown a default. |
+| **The person putting the case** | To see disagreement, not a summary. To be told when the panel failed rather than shown a default. To find a case again afterwards, from any browser. |
 | **The course instructor** | To open the repository and verify how the agent was directed — not to be told about it. |
 | **The two of us building it** | A boundary each person can work inside without colliding. |
 | **The model providers (OpenRouter and its upstreams)** | Not to be exceeded: rate limits respected, calls capped, no runaway loop. |
 | **The named judges, and the estates of the deceased among them** | Not to be impersonated or to have decisions predicted for them. Two of the three are real public figures. The prompts adapt a published method and say so, in the prompt itself. |
 | **Whoever maintains this after us** | Documents that explain the *why*, since the reasons will not survive in chat logs. |
+| **Anyone whose deliberation is in the record** | The record is shared, not private. Nothing in it is secret, and nothing in it should be: it holds charge sheets people typed. Whoever puts a case in should know it is kept and readable. |
 
-**Test — nobody should discover themselves on the list too late.** The last two
-rows are the ones this test earned. The judge row changed the prompts, which
-now state that they adapt a published method and do not impersonate anyone; the
-maintainer row is why `docs/` exists at all.
+**Test — nobody should discover themselves on the list too late.** The last
+three rows are the ones this test earned. The judge row changed the prompts,
+which now state that they adapt a published method and do not impersonate
+anyone; the maintainer row is why `docs/` exists at all; and the last row
+arrived with the shared record, which turned "history in this browser" into
+"charge sheets on a server". That is a change in kind and it belongs on this
+list rather than in a commit message.
 
 ## 3. Definition of done
 
@@ -57,12 +61,19 @@ app or the repository:
 7. The run reports tokens and cost per call and in total.
 8. Arrangement A (one model) and arrangement B (a model per seat) can both be
    run and their results compared.
-9. The OpenRouter key is never present in the browser bundle or in git history.
+9. Neither key — the model provider's nor the database's — is ever present in
+   the browser bundle or in git history.
+10. A finished deliberation, and the log of all seven of its model calls, is
+    stored server-side and can be read back in a browser that did not create
+    it.
+11. A deliberation the record refused is reported as unrecorded, beside the
+    verdicts, and never dropped in silence.
 
 **Test — could two readers disagree about whether it was met?** Item 6 is the
 weakest. "What it decided and on what grounds" is checkable; whether the
 protocol is *legible* is not. Everything else resolves to yes or no by
-inspection.
+inspection, and items 9 to 11 resolve to a command: `npm run verify`, a case
+opened in a second browser, and the banner beside the verdicts.
 
 ## 4. Out of scope
 
@@ -71,8 +82,13 @@ inspection.
 - **Merging the verdicts.** Named here because it is the most obvious feature
   request and it would destroy the point. There is no majority view, no
   aggregate confidence, no final answer.
-- **Accounts, authentication, multi-user storage.** History is IndexedDB, local
-  to one browser.
+- **Accounts and authentication.** The record is shared and unauthenticated:
+  anyone who can open the site can read every case in it. That is deliberate
+  for a course project whose whole purpose is to be opened and read by someone
+  else, and it is the reason nothing private may be put into a charge sheet.
+  It would be the first thing to change if this were ever more than that.
+- **Streaming a case back as it is written.** The record is read when a case is
+  opened, not watched.
 - **Streaming the speeches token by token.** The panel is shown working; the
   text arrives whole.
 - **Choosing models for quality.** The brief asks for the freest models that
