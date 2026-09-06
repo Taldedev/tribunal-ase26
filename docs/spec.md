@@ -360,9 +360,25 @@ argument for the method.
     it. The effect is real and small: 4% here, not the threefold saving a fully
     warmed prefix across three judges would give.
 
-    So: a small figure on a first run, a larger one on an immediate second run
-    of the same sheet, and neither is evidence of anything the bill does not
-    show. Lock what use confirmed, not what argument confirmed.
+    **And the second half of the prediction was wrong too.** An immediate
+    second run of the same charge sheet was supposed to be the case where the
+    saving lands, because the provider had just seen the prefix. Measured:
+
+    | | prompt tokens | from cache | share |
+    |---|---|---|---|
+    | first run, fresh sheet | 20,076 | 896 | 4.5% |
+    | second run, same sheet, minutes later | 20,787 | 916 | 4.4% |
+
+    Flat. On `minimax/minimax-m3:free` the shared prefix buys about 4% whether
+    the provider has seen the sheet before or not, so whatever is being cached
+    is not being retained between deliberations. The lever is real, it is
+    small, and both of the confident stories told about it here - "nothing
+    inside a run" and then "much more on a second run" - were argument rather
+    than measurement.
+
+    What stands: the prefix is identical and first, which is the part this
+    project controls; how much any provider does with that is a fact about the
+    provider, and the bill reports it per run rather than claiming it.
 
     **This is not a reason to serialise the waves.** Wall-clock time is the
     thing the user waits for, the tokens are counted either way, and on free

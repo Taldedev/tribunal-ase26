@@ -166,14 +166,25 @@ That moves S20 and S21 from *satisfied in code* to *satisfied in operation* at
 the database layer. It does **not** cover the function in front of it — see the
 first row below.
 
+### Verified by running the court, twice
+
+| What | Evidence |
+|---|---|
+| **A deliberation, end to end** | Two runs on arrangement A, `minimax/minimax-m3:free` in all seven seats. Seven calls each, all seven returned, three rulings each. S1, S2, S3 and S11 observed rather than inferred |
+| **The waves really are parallel (S5, S6)** | 21.0s against 67.8s sequential on the first run; 26.6s against 80.1s on the second. Of the 21.0s, 13.9s was models generating |
+| **The judges carry the cost (M9)** | measured: ~4,700 prompt tokens per judge against ~1,490 per speaker, all three judges reading the same record |
+| **`cachedTokens` is real (S19)** | 896 of 20,076 on the first run, 916 of 20,787 on the second — about 4% each time, shown on The bill and stored with the run |
+| **A case is written and read back through `/api/cases` (S20)** | both deliberations appear under Past cases, listed from Supabase through the function, with their verdicts, tokens and cache figures |
+| **Three judges on one model agree (M14's own claim)** | both runs: unanimous NOT JUSTIFIED across all three judges. Arrangement A sharing one model's blind spot is the thing the project asserts, and it is now observed |
+| **The simulation rule holds** | Barak's ruling rested on Tyrion's argument — a defence-seat representative reasoning against the side that called him, which is the dossier's design working |
+
 ### Still unchecked
 
 | What | Why it is unchecked | Who checks it |
 |---|---|---|
-| **A deliberation, end to end** | Needs a real `OPENROUTER_API_KEY`. Everything around the model call is now verified live; the seven calls themselves are not, so S1 through S6 and S19 rest on the suite alone | put the key in `.env`, press Convene, and read The opinion |
 | **S22 — a refused save reported beside the verdicts** | The record is working, so the failure this criterion describes has never occurred here. It is the one criterion whose evidence requires breaking something on purpose | stop the record (unset `SUPABASE_URL`), run a case, and check the banner appears beside real verdicts |
-| **A case read back in a second browser** | The listing is proven through the function; a case written by one browser and read by another is not | run a case, then open the site in a second browser |
-| **`cachedTokens` non-zero on a real call** | Needs a live model call, and per pitfall 31 it will only show on a *second* run of the same charge sheet — the calls in a wave are concurrent, so none warms the prefix for its siblings | run the same sheet twice and read The bill |
+| **A case read back in a second browser** | The listing is proven through the function; a case written by one browser and read by another is not | open the site in a second browser |
+| **Arrangement B, and the comparison** | Both runs were arrangement A. B needs seven models that all answer, and 2 of 4 free models answered when pinged — so this is a real cost in requests, not a formality | pick seven, use Test these models, then Compare |
 | **A non-zero `cachedTokens` on a real call** | Needs a live model call. The plumbing is tested; whether any chosen provider actually serves the prefix from cache is a fact about that provider, not about this code | run the same charge sheet twice and read The bill |
 | **The cache breakpoint being refused, and the retry** | Pitfall 22 is a prediction. No provider has yet rejected it here | first live run against a provider that does |
 | **CI passing** | The repository has not been pushed | GitHub, on the first push |
