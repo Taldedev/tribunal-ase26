@@ -2,16 +2,22 @@
  * constants.js - values shared across the application.
  */
 
-// Where the browser reaches the two serverless functions. The key lives behind
-// these, never in this bundle.
+// Where the browser reaches the serverless functions. Both keys - the model
+// provider's and the database's - live behind these and never in this bundle.
 export const CHAT_ENDPOINT = "/api/openrouter";
 export const MODELS_ENDPOINT = "/api/models";
 export const ACCOUNT_ENDPOINT = "/api/account";
+export const CASES_ENDPOINT = "/api/cases";
 
-// The IndexedDB store that keeps past cases, so a case can be found again.
-export const DATABASE_NAME = "tribunaldb";
-export const DATABASE_VERSION = 1;
-export const CASE_STORE = "cases";
+/*
+ * The most past cases the history panel asks for at once.
+ *
+ * There was no such number when the record lived in this browser, because a
+ * local store answers instantly and holds only what one person made. A shared
+ * record can hold everyone's, so a listing is bounded here as well as in the
+ * function - the browser's bound is a courtesy, the function's is the control.
+ */
+export const HISTORY_LIMIT = 50;
 
 // One deliberation is always these seven calls: four speeches, then three
 // rulings. Nothing in the application may quietly make it more.
