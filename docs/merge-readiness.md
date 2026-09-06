@@ -156,6 +156,7 @@ setting that this work could not supply.
 |---|---|
 | **The schema runs against a real Postgres, and a row can be written** | `npm run check:record`, 8 of 8: both tables exist, a probe case and its call row were written, both read back, and deleting the case took its call with it on the foreign key's cascade. The tables are no longer untested against anything but the suite |
 | **The endpoint is not open to the anonymous internet** | the same run: a request carrying no key at all was refused |
+| **Row-level security is really on** | the same run, 9 of 9 with `SUPABASE_ANON_KEY` present: the anonymous key — the only one RLS applies to — reads nothing from either table. The service-role key bypasses RLS by design, so this is the one check that could not be made with it |
 
 That moves S20 and S21 from *satisfied in code* to *satisfied in operation* at
 the database layer. It does **not** cover the function in front of it — see the
@@ -167,7 +168,6 @@ first row below.
 |---|---|---|
 | **`/api/cases` itself** | `check:record` talks to Supabase directly, so it proves the schema and the key and not the function that will actually use them. S22 in particular — a refused save reported beside the verdicts — has never been seen happen | run `netlify dev` and put a case, or read Past cases on the deployed site |
 | **A case read back in a second browser** | The round trip is proven; the point of it is not | the same person, after the above |
-| **Row-level security** | The service-role key bypasses RLS by design, so every passing check above would pass equally against tables the whole internet can read. `check:record` reports this as SKIPPED rather than passing quietly | add `SUPABASE_ANON_KEY` to `.env` — it is public by design — and re-run `npm run check:record` |
 | **A non-zero `cachedTokens` on a real call** | Needs a live model call. The plumbing is tested; whether any chosen provider actually serves the prefix from cache is a fact about that provider, not about this code | run the same charge sheet twice and read The bill |
 | **The cache breakpoint being refused, and the retry** | Pitfall 22 is a prediction. No provider has yet rejected it here | first live run against a provider that does |
 | **CI passing** | The repository has not been pushed | GitHub, on the first push |

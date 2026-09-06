@@ -2,12 +2,17 @@
 #
 # Proves the record is actually connected, by using it.
 #
-# Criteria S20, S21 and S22 are satisfied in code and that is not the same as
+# Criteria S20 and S21 are satisfied in code and that is not the same as
 # satisfied in operation: the tables have to exist, the key has to be the one
-# that can write, and row-level security has to be doing its job. This writes a
-# probe case, reads it back, checks that its call row came with it, and deletes
-# it again - so a green run here means a real round trip happened, not that a
-# variable was set.
+# that can write, and row-level security has to be on. This writes a probe
+# case, reads it back, checks that its call row came with it, and deletes it
+# again - so a green run means a real round trip happened, not that a variable
+# was set.
+#
+# It reaches Supabase directly and therefore stops short of the function that
+# will use these keys. S22 - a refused save reported beside the verdicts - is
+# not in its reach at all, and the closing message says so rather than
+# collecting a criterion it never tested.
 #
 # Run it after creating the Supabase project and running supabase/schema.sql:
 #
