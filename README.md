@@ -421,4 +421,4 @@ Built by a team of two.
 | Name             | GitHub                                 |
 |------------------|----------------------------------------|
 | *Meir Ben Moshe* | https://github.com/MeirBM              | 
-| *Tal Almagor*    | https://github.com/talmagor            |
+| *Tal Almagor*    | https://github.com/Taldedev            |

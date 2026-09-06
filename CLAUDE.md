@@ -57,9 +57,6 @@ judges on one model share that model's blind spot.
 
 Deployed at `majestic-kleicha-f115c0.netlify.app`.
 
-`tribunallm.netlify.app` is the original two-person project this one is built
-from, on a different Netlify account. Not this site.
-
 ## Commands
 
 ```
