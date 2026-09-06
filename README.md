@@ -317,8 +317,15 @@ Pinging every free chat model in the catalogue on 4 September 2026 gave **6 of
 19 answering** — the rest returned an empty answer, a provider error, or "only
 available on an agentic plan".
 
-So: **use the "Test these models" button before convening.** It sends one
-eight-token call to each selected model. In arrangement B that is seven models
+So: **use the "Test these models" button before convening**, or
+`npm run models` from a terminal. Both send one eight-token call per model.
+
+The daily allowance is also **not one bucket**: three models from one provider
+were refused for `free-models-per-day` in the same minute another provider
+answered a 900-token request. What a deliberation needs is enough *providers*,
+not enough requests, and `npm run models` probes three of them for that reason.
+OpenRouter reports no reset time, so asking is the only way to learn the day
+has turned over. In arrangement B that is seven models
 to check rather than one, and finding out a model is down through a failed
 deliberation costs four speeches.
 
