@@ -115,7 +115,10 @@ surface, written so tests can be built against it without reading `src/`),
 
 ## Costs and limits
 
-One deliberation is roughly 16,000–17,000 tokens. Free models cost nothing in
+One deliberation is roughly 24,500 tokens, measured rather than estimated
+(20,076 read, 4,420 written on a real run). The judges carry most of it: each
+reads the charge sheet plus all four speeches, about 4,700 prompt tokens
+against a speaker's 1,490. Free models cost nothing in
 dollars, so the dollar cap is not the limit that binds — **requests per day
 is.** 50/day without credit, at seven per run: about seven runs. $10 of credit
 raises it to 1000/day.

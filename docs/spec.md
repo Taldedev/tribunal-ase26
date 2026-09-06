@@ -350,12 +350,19 @@ argument for the method.
     take 40 seconds instead of 97; it is also what stops the shared prefix
     paying off *inside* one deliberation.
 
-    Where the saving does land is **across** runs: the second deliberation on
-    the same charge sheet presents a prefix the provider has already seen, for
-    as long as its cache holds it, which is typically minutes. So the honest
-    expectation is `cachedTokens: 0` on a first run of a fresh sheet and a
-    non-zero figure on an immediate second run - and a first run reporting zero
-    is the design working, not the lever failing.
+    **Measured, and the sentence that used to stand here was too strong.** A
+    first run of a fresh sheet on `minimax/minimax-m3:free` reported **896 of
+    20,076 prompt tokens from cache**, so some of it does land inside one
+    deliberation. The calls in a wave are dispatched together but do not land
+    together - the four speeches returned across 1.7s to 2.8s - and a provider
+    writes its prefix cache when the prompt is processed rather than when
+    generation finishes, so a sibling starting a moment behind can still hit
+    it. The effect is real and small: 4% here, not the threefold saving a fully
+    warmed prefix across three judges would give.
+
+    So: a small figure on a first run, a larger one on an immediate second run
+    of the same sheet, and neither is evidence of anything the bill does not
+    show. Lock what use confirmed, not what argument confirmed.
 
     **This is not a reason to serialise the waves.** Wall-clock time is the
     thing the user waits for, the tokens are counted either way, and on free
@@ -363,3 +370,26 @@ argument for the method.
     all. It is a reason for the run report to say which of the two it bought,
     which it now can, and a reason not to claim a saving the arrangement
     structurally cannot make on a single run.
+
+### Found by running the thing
+
+32. **A figure recorded everywhere and displayed nowhere is not evidence.**
+    `cachedTokens` was read from the provider, carried on every call log entry,
+    summed into the totals, stored in the database, and shown on exactly one
+    screen - the history list - while The bill, the panel whose whole job is
+    reporting what a run cost, never mentioned it. The README claimed it was
+    there. S19 was satisfied in the data and unsatisfied everywhere anyone
+    would look.
+33. **The case lost its own name at the moment it was loaded.** Clicking the
+    T-001 chip rebuilt the charge sheet from four of its five fields and
+    dropped `label`, so every stored deliberation read "Untitled charge sheet"
+    and the record could not say which case it had heard. The dossier's case
+    identifier is the one field that makes a stored run findable by anything
+    other than its timestamp.
+34. **The documented token figure was wrong by half.** The specification and
+    `CLAUDE.md` both said a deliberation is "roughly 16,000-17,000 tokens". A
+    measured run is **24,496** - 20,076 read, 4,420 written. Part of the gap is
+    the shared preamble this version adds to all seven prompts; the rest is
+    that the number had never been measured on this model. A cost document
+    carrying a figure nobody has checked is worse than one carrying none,
+    because the budget cap is reasoned against it.

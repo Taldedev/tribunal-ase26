@@ -264,8 +264,8 @@ possible, so:
 - The cap defaults to **$0.25** and cannot be set above $5.
 - `netlify/functions/openrouter.js` caps `max_tokens` server-side, so a
   tampered browser still cannot make one call arbitrarily expensive.
-- Every call's tokens, charge and elapsed time are logged and shown on **The
-  bill**, and stored as its own row in the record.
+- Every call's tokens, charge, cached tokens and elapsed time are logged, shown
+  on **The bill**, and stored as its own row in the record.
 
 ### The prefix that is paid for once
 

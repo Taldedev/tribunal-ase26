@@ -88,7 +88,19 @@ export default function ChargeSheetForm(props) {
                                     size="small"
                                     variant="outlined"
                                     onClick={function () {
+                                        /*
+                                         * The label travels with the sheet. It
+                                         * is the case's own identifier from the
+                                         * dossier - T-001 - and it is what the
+                                         * record lists a stored deliberation
+                                         * under. Rebuilding the sheet without
+                                         * it made every case in the history
+                                         * read "Untitled charge sheet", so the
+                                         * record could not say which case it
+                                         * had heard.
+                                         */
                                         props.onChange({
+                                            label: example.label,
                                             defendant: example.defendant,
                                             act: example.act,
                                             question: example.question,

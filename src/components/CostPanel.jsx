@@ -102,6 +102,29 @@ export default function CostPanel(props) {
                                 }
                             />
                         </Grid>
+                        {/*
+                          * The shared prefix, and whether it was paid for once.
+                          *
+                          * This figure was recorded on every call, stored with
+                          * every run, and displayed nowhere - so the one lever
+                          * Module 9 asks for beyond the choice of model had no
+                          * evidence on the screen that reports the cost. A
+                          * saving nobody can see is a saving nobody can check.
+                          */}
+                        <Grid size={{ xs: 6, md: 3 }}>
+                            <Figure
+                                label="From cache"
+                                value={formatTokens(totals.cachedTokens || 0)}
+                                note={
+                                    totals.cachedTokens > 0
+                                        ? Math.round(
+                                              (totals.cachedTokens / Math.max(totals.promptTokens, 1)) * 100
+                                          ) +
+                                          "% of what was read, charged once"
+                                        : "none - this provider served no prefix from cache"
+                                }
+                            />
+                        </Grid>
                         <Grid size={{ xs: 6, md: 3 }}>
                             <Figure
                                 label="Calls"

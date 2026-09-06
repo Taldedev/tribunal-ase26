@@ -79,7 +79,7 @@ back to a default answer. An empty seat is reported as an empty seat.
 
 ## What it costs, and what it buys
 
-**Costs.** Seven calls, roughly 16,000–17,000 tokens per deliberation. The
+**Costs.** Seven calls, roughly 24,500 tokens per deliberation, measured on a real run. The
 judges dominate: each reads the charge sheet plus all four speeches, so judge
 prompts run several times the size of speaker prompts. Cost grows faster than
 the agent count for exactly that reason.
