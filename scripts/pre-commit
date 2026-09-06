@@ -1,0 +1,72 @@
+#!/bin/sh
+#
+# Refuses a commit that carries a credential.
+#
+# The rule this enforces is that a committed secret is exposed for the life of
+# the project: history is permanent, so deleting the line later does not help,
+# and the key sits in every copy anyone ever cloned. Care is not a control -
+# this file is, because it runs whether anyone remembered or not.
+#
+# Install with:  git config core.hooksPath scripts
+# Bypass once (only when you are certain):  git commit --no-verify
+
+set -e
+
+# Long-form provider keys. The placeholder "sk-or-v1-replace-me" is far shorter
+# than the minimum length here, so the example file still commits cleanly.
+PATTERN='sk-or-v1-[A-Za-z0-9_-]{20,}|sk-ant-[A-Za-z0-9_-]{20,}|sk-proj-[A-Za-z0-9_-]{20,}|ghp_[A-Za-z0-9]{30,}|gho_[A-Za-z0-9]{30,}|AKIA[0-9A-Z]{16}|AIza[0-9A-Za-z_-]{30,}'
+
+# Only what is actually staged is scanned; a key sitting in an ignored .env is
+# not the problem this is guarding against.
+FOUND=$(git diff --cached --no-color -U0 -- . ':(exclude).env' \
+        | grep -E '^\+' \
+        | grep -nE "$PATTERN" \
+        || true)
+
+if [ -n "$FOUND" ]; then
+    echo ""
+    echo "COMMIT REFUSED - a credential is staged."
+    echo ""
+    git diff --cached --name-only | while read -r file; do
+        if [ -f "$file" ] && grep -qE "$PATTERN" "$file" 2>/dev/null; then
+            echo "  $file"
+        fi
+    done
+    echo ""
+    echo "  Move the value into .env, which is ignored, and leave a placeholder"
+    echo "  in the file you were editing. If the key has already been committed"
+    echo "  anywhere, treat it as compromised and issue a new one."
+    echo ""
+    exit 1
+fi
+
+# ---------------------------------------------------------------------------
+# The specification's criteria, checked mechanically.
+#
+# Cheap gates first and the human gate last: these need nobody present, so
+# they run on every commit rather than waiting for someone to remember. A
+# standard that depends on willpower at a late hour is not a control.
+#
+# Only the unit suite runs here. The history scan in scripts/verify-repo.sh
+# walks every commit ever made and is too slow to pay for on each commit.
+if [ -d tests ] && [ -n "$(ls -A tests 2>/dev/null)" ]; then
+    printf 'Running the specification suite ... '
+    if OUTPUT=$(npm test --silent 2>&1); then
+        echo 'passed.'
+    else
+        echo ''
+        echo ''
+        echo "$OUTPUT" | tail -40
+        echo ''
+        echo 'COMMIT REFUSED - the specification suite failed.'
+        echo ''
+        echo '  These tests were written from docs/spec.md by an agent that'
+        echo '  never read the implementation, so a failure means the code and'
+        echo '  the specification disagree. Decide which one is wrong and fix'
+        echo '  that one. Do not edit the test to match the code.'
+        echo ''
+        exit 1
+    fi
+fi
+
+exit 0

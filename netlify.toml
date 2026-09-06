@@ -1,0 +1,21 @@
+# Netlify build and function configuration.
+#
+# The OpenRouter key is stored as an environment variable in the Netlify site
+# settings (OPENROUTER_API_KEY). It is read only inside the functions, so it
+# never reaches the browser bundle.
+
+[build]
+  command = "npm run build"
+  publish = "dist"
+  functions = "netlify/functions"
+
+[dev]
+  command = "npm run dev:vite"
+  targetPort = 5173
+  port = 8888
+  framework = "#custom"
+
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
