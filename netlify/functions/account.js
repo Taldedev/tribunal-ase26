@@ -11,6 +11,8 @@
  * the account's own description of its allowance is passed on.
  */
 
+import { readModelKey } from "../shared/keys.js";
+
 const KEY_URL = "https://openrouter.ai/api/v1/auth/key";
 
 function jsonResponse(body, status) {
@@ -31,10 +33,11 @@ function readNumber(value) {
 }
 
 export default async function handler() {
-    const apiKey = process.env.OPENROUTER_API_KEY;
-    if (!apiKey) {
-        return jsonResponse({ error: "The server has no OPENROUTER_API_KEY." }, 500);
+    const credential = readModelKey();
+    if (credential.error) {
+        return jsonResponse({ error: credential.error }, 500);
     }
+    const apiKey = credential.key;
 
     let upstream;
     try {

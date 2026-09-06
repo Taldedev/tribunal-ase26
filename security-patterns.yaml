@@ -1,0 +1,64 @@
+# The credential shapes this project refuses to store.
+#
+# One list, read by all three barriers, because three copies of the same list
+# is three lists that drift: a shape added to the commit hook and forgotten in
+# the history scan is a shape that gets caught on the way in and never on the
+# way through. scripts/secret-patterns.sh joins these into one expression and
+# the hook, the pre-commit gate and the verify script all source it.
+#
+# Every pattern requires enough characters after its prefix that the
+# placeholders in .env.example pass cleanly. That is deliberate. A scanner that
+# cannot tell `sk-or-v1-replace-me` from a real key is a scanner somebody
+# switches off within a week, and then nothing is scanned at all.
+#
+# Adding one: append it here, then check both directions - that it catches a
+# real-shaped value and that it does not fire on anything already committed.
+# `npm run verify` walks the whole history, so a pattern that false-positives
+# on existing content will tell you immediately.
+
+patterns:
+  # ---- the two this project actually holds ------------------------------
+  - name: openrouter-api-key
+    match: 'sk-or-v1-[A-Za-z0-9_-]{20,}'
+    why: The model provider. The only key the browser could ever have leaked.
+
+  - name: supabase-service-role-key
+    match: 'sb_secret_[A-Za-z0-9_-]{20,}'
+    why: >
+      The record. Bypasses row-level security by design, so a leak of this one
+      reads and writes every row in both tables.
+
+  - name: supabase-legacy-jwt-key
+    match: 'eyJ[A-Za-z0-9_-]{10,}\.eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}'
+    why: >
+      Older Supabase projects issue service keys as three-part JWTs, which
+      carry no distinguishing prefix at all. Matching the shape is the only
+      way to catch one, and it is why a bare header.payload.signature triple
+      is refused anywhere in this repository.
+
+  - name: supabase-personal-token
+    match: 'sbp_[A-Za-z0-9]{20,}'
+    why: A management token. Not used here, and easy to paste in by accident.
+
+  # ---- shapes we do not use, kept because the cost of a miss is permanent --
+  # A key that reaches a commit is compromised and must be rotated, not
+  # deleted: history is permanent and sits in every clone taken since. So the
+  # list covers what a developer or an agent might plausibly paste into this
+  # repository, not only what it consumes.
+  - name: anthropic-api-key
+    match: 'sk-ant-[A-Za-z0-9_-]{20,}'
+
+  - name: openai-project-key
+    match: 'sk-proj-[A-Za-z0-9_-]{20,}'
+
+  - name: github-personal-token
+    match: 'ghp_[A-Za-z0-9]{30,}'
+
+  - name: github-oauth-token
+    match: 'gho_[A-Za-z0-9]{30,}'
+
+  - name: aws-access-key-id
+    match: 'AKIA[0-9A-Z]{16}'
+
+  - name: google-api-key
+    match: 'AIza[0-9A-Za-z_-]{30,}'

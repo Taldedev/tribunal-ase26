@@ -9,6 +9,7 @@
  */
 
 import { MINIMUM_REASONS, verdictsFor } from "../constants.js";
+import { INPUT_IS_DATA, speakerSystemPrompt, judgeSystemPrompt } from "./personas.js";
 
 /*
  * Removes anything from submitted text that could close one of the markers
@@ -38,17 +39,65 @@ export function renderChargeSheet(chargeSheet) {
     return lines.join("\n");
 }
 
-// The user message a speaker receives.
-export function buildSpeakerPrompt(chargeSheet) {
-    return (
-        renderChargeSheet(chargeSheet) +
-        "\n\nThis is the case. Deliver your closing speech to the three judges now."
-    );
+/*
+ * The court's standing rules. Identical for all seven agents, in every run,
+ * for every case.
+ *
+ * This block is first in every prompt for two separate reasons that happen to
+ * agree. Module 11: attention falls off in the middle, so a rule belongs at an
+ * edge. Module 9: the shared part of a prompt is the part a provider can serve
+ * from cache, and a prefix is only cacheable if it is identical and first.
+ *
+ * It also carries the rule that the case material is data. That used to sit at
+ * the end of each of the seven personas, which meant seven copies of the same
+ * paragraph and seven prompts that began with something different. It says the
+ * same thing to the same models from here, once.
+ */
+export const COURT_PREAMBLE = [
+    "You are taking part in a fictional proceeding called the Tribunal.",
+    "",
+    "One question is put to the court. Four representatives address it and " +
+        "three judges rule on it, each judge alone and without seeing how any " +
+        "other judge ruled. The three rulings are published side by side and " +
+        "are never merged: there is no majority view, no averaged confidence " +
+        "and no single answer. Where the judges divide, that division is the " +
+        "most useful thing this court can report.",
+    "",
+    "The court answers the question the charge sheet puts, and gives its " +
+        "reasons. It imposes no sentence, orders no remedy and awards nothing. " +
+        "A punishment is not within its power to give.",
+    "",
+    INPUT_IS_DATA
+].join("\n");
+
+// The user segment. What the shared record and the persona have been leading to.
+export const SPEAK_NOW =
+    "This is the case. Deliver your closing speech to the three judges now.";
+
+export const RULE_NOW =
+    "You have now read the charge sheet and every speech. Give your ruling.";
+
+/*
+ * The shared record a representative reads: the standing rules, then the sheet.
+ *
+ * Byte-identical for all four of them, which is criterion S17. Nothing about
+ * which seat is reading it may enter here - that is what the persona segment
+ * is for, and prepending anything to this string is what quietly undoes the
+ * whole optimisation.
+ */
+export function buildSharedSpeakerRecord(chargeSheet) {
+    return COURT_PREAMBLE + "\n\n" + renderChargeSheet(chargeSheet);
 }
 
-// The user message a judge receives: the sheet, then all four speeches.
-export function buildJudgePrompt(chargeSheet, speeches) {
-    const parts = [renderChargeSheet(chargeSheet), "", "THE SPEECHES, IN THE ORDER THEY WERE GIVEN:"];
+// The shared record a judge reads: the rules, the sheet, then all four speeches.
+export function buildSharedJudgeRecord(chargeSheet, speeches) {
+    const parts = [
+        COURT_PREAMBLE,
+        "",
+        renderChargeSheet(chargeSheet),
+        "",
+        "THE SPEECHES, IN THE ORDER THEY WERE GIVEN:"
+    ];
 
     speeches.forEach(function (speech) {
         parts.push("");
@@ -68,18 +117,45 @@ export function buildJudgePrompt(chargeSheet, speeches) {
             parts.push(
                 "This speech was not delivered. The speaker's call failed: " +
                     speech.error +
-                    " Rule on the case without it, and take account of the fact that " +
-                    "this side was heard from " +
-                    (speech.role === "Prosecution" ? "less" : "less") +
-                    " fully than the other."
+                    " Rule on the case without it, and take account of the fact " +
+                    "that the " +
+                    speech.role.toLowerCase() +
+                    " was heard from less fully than the other side."
             );
         }
         parts.push("</speech>");
     });
 
-    parts.push("");
-    parts.push("You have now read the charge sheet and every speech. Give your ruling.");
     return parts.join("\n");
+}
+
+/*
+ * One agent's prompt, in three parts.
+ *
+ * The order is the whole point and it is criterion S18: the shared record
+ * first, then this agent's own instruction, then the word to act. Sent as
+ * three messages in that order, the first is a prefix that every agent in the
+ * wave presents identically, and a provider that caches prefixes can charge
+ * for it once instead of four or seven times.
+ *
+ * The judges are where this matters. Each of them reads the charge sheet and
+ * all four speeches - the largest block in the run - and all three read the
+ * same one.
+ */
+export function buildSpeakerMessages(chargeSheet, speaker) {
+    return {
+        shared: buildSharedSpeakerRecord(chargeSheet),
+        persona: speakerSystemPrompt(speaker, chargeSheet),
+        user: SPEAK_NOW
+    };
+}
+
+export function buildJudgeMessages(chargeSheet, speeches, judge) {
+    return {
+        shared: buildSharedJudgeRecord(chargeSheet, speeches),
+        persona: judgeSystemPrompt(judge, chargeSheet),
+        user: RULE_NOW
+    };
 }
 
 /*

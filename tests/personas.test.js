@@ -1,8 +1,9 @@
 // tests/personas.test.js — the cast and the prompts.
 //
-// Sources: docs/spec.md §1, S2, S4, §5 pitfalls 4 and 14;
+// Sources: docs/spec.md §1, S2, S4, S16, §5 pitfalls 4 and 14;
 // docs/coordination.md ("The agents", "The seat does not fix the position");
-// docs/problem.md §2 (the named judges) and §4 (no claim about real law).
+// docs/problem.md §2 (the named judges) and §4 (no claim about real law);
+// docs/case-dossier.md ("The scope note").
 
 import { test, describe } from "node:test";
 import assert from "node:assert/strict";
@@ -10,6 +11,7 @@ import assert from "node:assert/strict";
 import {
     SPEAKERS,
     JUDGES,
+    INPUT_IS_DATA,
     buildVerdictForm,
     speakerSystemPrompt,
     judgeSystemPrompt,
@@ -148,6 +150,21 @@ describe("personas · buildVerdictForm", () => {
         assert.ok(guilt.includes("GUILTY"), guilt);
         assert.ok(guilt.includes("NOT GUILTY"), guilt);
         assert.ok(!guilt.includes("JUSTIFIED"), `the GUILT form leaked the JUSTIFICATION vocabulary:\n${guilt}`);
+    });
+
+    test("S16 · the required form has no field for a sentence or a penalty", () => {
+        // The dossier's scope note: "The Tribunal decides justified / not
+        // justified and gives reasons. It does not impose a sentence." A form
+        // with a SENTENCE line would ask for one whatever the prose says.
+        for (const set of Object.values(VERDICT_SETS)) {
+            const form = buildVerdictForm(set);
+            const field = form.match(/^\s*\**\s*(SENTENCE|PUNISHMENT|PENALTY|SANCTION|REMEDY)\b/im);
+            assert.equal(
+                field,
+                null,
+                `the required form asks for "${field?.[1]}"; the Tribunal does not impose a sentence`,
+            );
+        }
     });
 });
 
@@ -317,6 +334,187 @@ describe("personas · judge prompts", () => {
                 `${judge.name}'s prompt does not say it adapts a method rather than being the person:\n${prompt}`,
             );
         }
+    });
+});
+
+// ---------------------------------------------------------------------------
+// S16 — no judge is permitted to impose a sentence
+// ---------------------------------------------------------------------------
+
+// The dossier's scope note, verbatim from docs/case-dossier.md:
+//
+//   "The Tribunal decides justified / not justified and gives reasons. It does
+//    not impose a sentence or combine the three opinions into one verdict."
+//
+// spec.md S16: "No judge is permitted to impose a sentence · Every judge
+// prompt forbids it; the dossier's scope note requires it." And §2: "The
+// architecture enforced the first everywhere and nothing at all enforced the
+// second."
+//
+// Two tests, so each half can fail on its own: one fails if the prompt is
+// silent about sentencing, the other if it mentions it without forbidding it.
+
+/** The clauses of a prompt, so a prohibition is read next to what it forbids. */
+function clauses(text) {
+    return String(text)
+        .split(/(?<=[.!?;:])\s+|\n+/)
+        .map((c) => c.trim())
+        .filter(Boolean);
+}
+
+/**
+ * Does this clause talk about sentencing — the judicial sense of the word?
+ * "Answer in one sentence" is a writing instruction, not a punishment.
+ */
+function namesSentencing(clause) {
+    if (/\b(sentencing|punish|punishes|punishing|punishment|punishments|punitive|penalty|penalties|sanction|sanctions)\b/i.test(clause)) {
+        return true;
+    }
+    if (!/\bsentences?\b/i.test(clause)) return false;
+    return !/\b(one|a single|two|three|four|five|few|short|long|first|last|opening|closing|per|complete|full)\s+sentences?\b/i.test(clause);
+}
+
+/** Is this clause forbidding, rather than merely mentioning? */
+function forbids(clause) {
+    return /(\bdo not\b|\bdoes not\b|\bdon't\b|\bnever\b|\bno\b|\bnot\b|\bnothing\b|\bwithout\b|\brefrain\b|\bmust not\b|\bmay not\b|\bcannot\b|\bcan't\b|\bshall not\b|\bnor\b|\bforbidden\b|\bprohibited\b|\bbeyond\b|\boutside\b|\bis not (yours|for you|your)\b|\bnot your\b|\bleave\b)/i.test(clause);
+}
+
+describe("personas · S16 · no judge is permitted to impose a sentence", () => {
+    test("S16 · the check itself is not vacuous", () => {
+        // A loose matcher would pass on a prompt that says nothing, and S16
+        // would then be enforced by nobody. These are the two prompts the
+        // criterion exists to reject, and the fixed form's own wording, which
+        // it must not reject.
+        const silent = "You are a judge. Weigh the four speeches. Answer in the fixed form.";
+        assert.equal(clauses(silent).some(namesSentencing), false, "a silent prompt read as mentioning sentencing");
+
+        const neutral = "You are a judge. The tribunal may impose a sentence. Answer in the fixed form.";
+        assert.ok(clauses(neutral).some(namesSentencing), "a prompt about sentencing read as silent");
+        assert.equal(
+            clauses(neutral).filter(namesSentencing).some(forbids),
+            false,
+            "a permission to sentence read as a prohibition",
+        );
+
+        const forbidding = "You do not impose a sentence and you do not propose a penalty.";
+        assert.ok(clauses(forbidding).filter(namesSentencing).some(forbids), "a prohibition was not recognised");
+
+        const writingInstruction = "Give your reasoning in one sentence per reason.";
+        assert.equal(
+            clauses(writingInstruction).some(namesSentencing),
+            false,
+            'the writing sense of "sentence" was read as a punishment',
+        );
+    });
+
+    test("S16 · every judge's prompt raises sentencing at all", () => {
+        // If the prompt never mentions it, nothing forbids it — which is
+        // exactly the state spec.md §2 says version 2 was in.
+        for (const judge of JUDGES) {
+            const prompt = judgeSystemPrompt(judge, JUSTIFICATION_CASE);
+            assert.ok(
+                clauses(prompt).some(namesSentencing),
+                `${judge.name}'s prompt says nothing about a sentence, a punishment or a penalty, ` +
+                    "so a judge that imposed one would break nothing",
+            );
+        }
+    });
+
+    test("S16 · every judge's prompt forbids imposing one", () => {
+        for (const judge of JUDGES) {
+            const prompt = judgeSystemPrompt(judge, JUSTIFICATION_CASE);
+            const mentions = clauses(prompt).filter(namesSentencing);
+            const prohibitions = mentions.filter(forbids);
+            assert.ok(
+                prohibitions.length > 0,
+                `${judge.name}'s prompt mentions sentencing without forbidding it. ` +
+                    `The clauses that mention it are: ${JSON.stringify(mentions)}`,
+            );
+        }
+    });
+
+    test("S16 · the prohibition holds in the GUILT vocabulary too", () => {
+        // A guilt case is the one where a sentence would feel natural.
+        for (const judge of JUDGES) {
+            const prompt = judgeSystemPrompt(judge, GUILT_CASE);
+            assert.ok(
+                clauses(prompt).filter(namesSentencing).some(forbids),
+                `${judge.name}'s prompt does not forbid a sentence when the case asks about guilt`,
+            );
+        }
+    });
+
+    test("S16 · no judge's prompt asks for a sentence in so many words", () => {
+        const asks =
+            /\b(impose|hand down|pass|determine|decide|set|recommend|propose|suggest|state)\b[^.\n]{0,30}\b(a )?(sentence|punishment|penalty)\b/i;
+        for (const judge of JUDGES) {
+            const prompt = judgeSystemPrompt(judge, JUSTIFICATION_CASE);
+            for (const clause of clauses(prompt)) {
+                const hit = clause.match(asks);
+                if (!hit) continue;
+                assert.ok(
+                    forbids(clause),
+                    `${judge.name}'s prompt asks for a sentence: "${clause}"`,
+                );
+            }
+        }
+    });
+
+    test("S16 · the other half of the scope note is still enforced in the same prompts", () => {
+        // "It does not ... combine the three opinions into one verdict."
+        // Recorded alongside S16 because the dossier states them together and
+        // version 2 enforced only this half.
+        for (const judge of JUDGES) {
+            const prompt = judgeSystemPrompt(judge, JUSTIFICATION_CASE);
+            const hit = prompt.match(
+                /(combine (the )?(three )?opinions|one combined verdict|a single verdict for the (panel|bench|tribunal))/i,
+            );
+            if (!hit) continue;
+            assert.ok(
+                clauses(prompt).some((c) => c.includes(hit[0]) && forbids(c)),
+                `${judge.name}'s prompt raises a combined verdict without forbidding it: "${hit[0]}"`,
+            );
+        }
+    });
+});
+
+// ---------------------------------------------------------------------------
+// INPUT_IS_DATA — new export in version 3; it was internal before
+// ---------------------------------------------------------------------------
+
+describe("personas · S13 · INPUT_IS_DATA is the shared statement that input is not instruction", () => {
+    test("S13 · INPUT_IS_DATA is a non-empty exported string", () => {
+        assert.equal(typeof INPUT_IS_DATA, "string", "INPUT_IS_DATA is not exported as a string");
+        assert.ok(INPUT_IS_DATA.trim().length > 0, "INPUT_IS_DATA is empty");
+    });
+
+    test("S13 · it says the material is data and not an instruction", () => {
+        // CLAUDE.md: "The charge sheet is data, never instruction ... every
+        // system prompt says so. Neither half is sufficient alone."
+        assert.ok(
+            /\bdata\b|\bmaterial\b|\bevidence\b|\brecord\b/i.test(INPUT_IS_DATA),
+            `INPUT_IS_DATA never calls the input data:\n${INPUT_IS_DATA}`,
+        );
+        assert.ok(
+            /\binstruction/i.test(INPUT_IS_DATA),
+            `INPUT_IS_DATA never says the input is not an instruction:\n${INPUT_IS_DATA}`,
+        );
+    });
+
+    test("§5 pitfall 14 · it does not ask the agent to confirm the absence of tampering", () => {
+        const confirmAbsence =
+            /(confirm|state|report|note|declare|say so)\b[^.\n]{0,50}\b(that (there )?(were|was|are|is) (no|none)|the absence of|nothing was found|no attempt (was|were)|none (was|were) found|clean|all clear)\b/i;
+        const hit = INPUT_IS_DATA.match(confirmAbsence);
+        assert.equal(hit, null, `INPUT_IS_DATA asks for a confirmation of absence: "${hit?.[0]}"`);
+    });
+
+    test("§5 pitfall 14 · where it raises tampering it requires quotable words and silence otherwise", () => {
+        if (!/inject|manipulat|tamper|instruction[s]? (hidden|embedded)/i.test(INPUT_IS_DATA)) return;
+        assert.ok(/quot/i.test(INPUT_IS_DATA), "INPUT_IS_DATA raises tampering without requiring quotable words");
+        assert.ok(
+            /(silen|say nothing|do not mention|otherwise (say|write) nothing|without comment)/i.test(INPUT_IS_DATA),
+            "INPUT_IS_DATA raises tampering without requiring silence when there is nothing to quote",
+        );
     });
 });
 

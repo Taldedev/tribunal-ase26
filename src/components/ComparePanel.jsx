@@ -27,7 +27,12 @@ import { formatUsd, formatTokens, formatDuration } from "../lib/money.js";
 
 function caseLabel(record) {
     const when = new Date(record.createdAt).toLocaleString();
-    const who = record.chargeSheet.defendant.split(",")[0];
+    /*
+     * A listing row is a summary, not a case. It carries the label and the
+     * question and deliberately not four speeches, so the menu describes a run
+     * from what a listing actually has.
+     */
+    const who = record.label || (record.question || "").slice(0, 48);
     return (record.config === CONFIG_SINGLE ? "A" : "B") + " · " + who + " · " + when;
 }
 
@@ -167,12 +172,59 @@ export default function ComparePanel(props) {
         [cases]
     );
 
-    const left = cases.find(function (record) {
-        return record.runId === leftId;
-    });
-    const right = cases.find(function (record) {
-        return record.runId === rightId;
-    });
+    /*
+     * The two runs being compared are read in full from the record, because
+     * everything this panel shows below the menus - the speeches behind a
+     * verdict, the model each seat sat on, the wall clock - is in the case and
+     * not in the listing. Two reads for two selections, rather than fifty
+     * complete deliberations fetched so that two of them can be looked at.
+     */
+    const [left, setLeft] = React.useState(null);
+    const [right, setRight] = React.useState(null);
+    const [loadError, setLoadError] = React.useState(null);
+    const loadCase = props.loadCase;
+
+    React.useEffect(
+        function () {
+            let cancelled = false;
+            if (!leftId || !loadCase) {
+                setLeft(null);
+                return undefined;
+            }
+            loadCase(leftId).then(function (result) {
+                if (cancelled) {
+                    return;
+                }
+                setLeft(result.ok ? result.case : null);
+                setLoadError(result.ok ? null : result.error);
+            });
+            return function () {
+                cancelled = true;
+            };
+        },
+        [leftId, loadCase]
+    );
+
+    React.useEffect(
+        function () {
+            let cancelled = false;
+            if (!rightId || !loadCase) {
+                setRight(null);
+                return undefined;
+            }
+            loadCase(rightId).then(function (result) {
+                if (cancelled) {
+                    return;
+                }
+                setRight(result.ok ? result.case : null);
+                setLoadError(result.ok ? null : result.error);
+            });
+            return function () {
+                cancelled = true;
+            };
+        },
+        [rightId, loadCase]
+    );
 
     // The comparison is only honest when both runs heard the same case.
     const sameCase =
@@ -215,6 +267,17 @@ export default function ComparePanel(props) {
 
     return (
         <Stack gap={2}>
+            {/*
+              * A record that would not answer is stated, not swallowed. The
+              * panel below would otherwise simply look empty, and an empty
+              * comparison reads as "these two runs were identical".
+              */}
+            {loadError ? (
+                <Alert severity="warning">
+                    A stored case could not be read back: {loadError}
+                </Alert>
+            ) : null}
+
             <Card variant="outlined">
                 <CardContent>
                     <Typography variant="h6" gutterBottom>

@@ -1,0 +1,49 @@
+# The gate, run where nobody can skip it.
+#
+# The pre-commit hook is the cheap half and it runs on a developer's machine,
+# which means two things it cannot fix on its own: `git commit --no-verify`
+# skips it, and it is only installed in checkouts that ran `npm install`. This
+# workflow is the half that does not depend on either. Criterion S25.
+#
+# Module 13: make the tools refuse the merge mechanically, because willpower at
+# a late hour is not a control. Turning that into an actual refusal takes one
+# more step that lives in GitHub rather than in this file - Settings ->
+# Branches -> protect `main` -> require this check to pass. Without that, this
+# workflow reports and does not refuse.
+
+name: gate
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  gate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # S10 is a property of every commit that has ever existed, so the
+          # credential scan needs the whole history. A shallow clone would let
+          # this check pass while a key sat two commits back.
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      # Cheap gates first, and in the order that fails fastest. Never spend a
+      # build on work the tests reject.
+      - name: The specification suite
+        run: npm test
+
+      - name: Build
+        run: npm run build
+
+      # Last, because S9 reads the bundle the build just produced.
+      - name: Credential scan (bundle and full history)
+        run: npm run verify

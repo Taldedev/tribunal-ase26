@@ -16,7 +16,8 @@
 set -e
 cd "$(dirname "$0")/.."
 
-PATTERN='sk-or-v1-[A-Za-z0-9_-]{20,}|sk-ant-[A-Za-z0-9_-]{20,}|sk-proj-[A-Za-z0-9_-]{20,}|ghp_[A-Za-z0-9]{30,}|AKIA[0-9A-Z]{16}|AIza[0-9A-Za-z_-]{30,}'
+. "$(dirname -- "$0")/secret-patterns.sh"
+PATTERN=$(secret_patterns)
 FAILED=0
 
 echo ""

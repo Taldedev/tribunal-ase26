@@ -30,14 +30,12 @@ import {
     CONFIG_SINGLE,
     CONFIG_SPLIT,
     DEFAULT_BUDGET_USD,
-    DATABASE_NAME,
-    DATABASE_VERSION,
     DEFAULT_VERDICT_SET
 } from "./constants.js";
 import { loadModels, loadAccount } from "./tribunal/client.js";
 import { pickDefaultModels, assignDistinctModels } from "./tribunal/modelChoice.js";
 import { planRun, runCase } from "./tribunal/runCase.js";
-import { openCasesDB } from "./lib/casesDb.js";
+import { createCasesClient } from "./lib/casesApi.js";
 import { SPEAKERS, JUDGES } from "./tribunal/personas.js";
 import { formatUsd } from "./lib/money.js";
 
@@ -77,8 +75,27 @@ export default function App() {
     const [run, setRun] = useState(null);
     const [runError, setRunError] = useState(null);
 
-    const [database, setDatabase] = useState(null);
+    /*
+     * The record. One client for the life of the page, because it holds no
+     * connection and no state - it is the /api/cases path and an injectable
+     * fetch, and rebuilding it on every render would only make every effect
+     * that depends on it fire again.
+     */
+    const record = useMemo(function () {
+        return createCasesClient();
+    }, []);
     const [cases, setCases] = useState([]);
+    const [casesError, setCasesError] = useState(null);
+
+    /*
+     * A deliberation the record refused, kept separate from runError.
+     *
+     * They are two different failures and reporting them as one would be the
+     * lie: runError means the court did not sit, and this means it sat, ruled,
+     * and was not written down. The verdicts on screen are real either way,
+     * and only one of the two says they are all that is left. Criterion S22.
+     */
+    const [recordError, setRecordError] = useState(null);
     const [message, setMessage] = useState("");
 
     // ---- the model catalogue ---------------------------------------------
@@ -123,39 +140,32 @@ export default function App() {
         };
     }, []);
 
-    // ---- the case store ---------------------------------------------------
+    // ---- the record -------------------------------------------------------
     const refreshCases = useCallback(
-        async function (db) {
-            const target = db || database;
-            if (!target) {
+        async function () {
+            const result = await record.listCases();
+            if (result.ok) {
+                setCases(result.cases);
+                setCasesError(null);
                 return;
             }
-            const rows = await target.getAllCases();
-            setCases(rows);
+            /*
+             * The previous listing is left on screen rather than cleared. A
+             * momentary failure should not make the court look as though it
+             * had never heard anything, and the banner above says what
+             * happened.
+             */
+            setCasesError(result.error);
         },
-        [database]
+        [record]
     );
 
-    useEffect(function () {
-        let cancelled = false;
-        openCasesDB(DATABASE_NAME, DATABASE_VERSION)
-            .then(async function (db) {
-                if (cancelled) {
-                    return;
-                }
-                setDatabase(db);
-                const rows = await db.getAllCases();
-                if (!cancelled) {
-                    setCases(rows);
-                }
-            })
-            .catch(function (error) {
-                setMessage("Past cases are unavailable: " + error.message);
-            });
-        return function () {
-            cancelled = true;
-        };
-    }, []);
+    useEffect(
+        function () {
+            refreshCases();
+        },
+        [refreshCases]
+    );
 
     // ---- the estimate shown beside the budget -----------------------------
     const estimate = useMemo(
@@ -217,13 +227,12 @@ export default function App() {
             return;
         }
 
-        if (database) {
-            try {
-                await database.addCase(result);
-                await refreshCases(database);
-            } catch (error) {
-                setMessage("The case could not be stored: " + error.message);
-            }
+        const stored = await record.addCase(result);
+        if (stored.ok) {
+            setRecordError(null);
+            await refreshCases();
+        } else {
+            setRecordError(stored.error);
         }
 
         setMessage(
@@ -236,12 +245,50 @@ export default function App() {
     }
 
     async function deleteCase(runId) {
-        if (!database) {
+        const result = await record.deleteCase(runId);
+        if (!result.ok) {
+            setMessage("That case could not be deleted: " + result.error);
             return;
         }
-        await database.deleteCase(runId);
-        await refreshCases(database);
+        await refreshCases();
         setMessage("Case deleted.");
+    }
+
+    /*
+     * Reading one stored case back in full.
+     *
+     * A listing row is a summary and cannot be opened as a deliberation, so
+     * opening one is a read. It is handed to ComparePanel as a prop for the
+     * same reason: two selected runs are two reads, not fifty.
+     */
+    const loadCase = useCallback(
+        function (runId) {
+            return record.getCase(runId);
+        },
+        [record]
+    );
+
+    async function openStoredCase(runId) {
+        const result = await record.getCase(runId);
+        if (!result.ok) {
+            setMessage("That case could not be opened: " + result.error);
+            return;
+        }
+        setRun(result.case);
+        setRunError(null);
+        setRecordError(null);
+        setTab(1);
+    }
+
+    async function reuseStoredSheet(runId) {
+        const result = await record.getCase(runId);
+        if (!result.ok) {
+            setMessage("That charge sheet could not be read: " + result.error);
+            return;
+        }
+        setChargeSheet(result.case.chargeSheet);
+        setTab(0);
+        setMessage("Charge sheet loaded. Choose an arrangement and convene.");
     }
 
     const hasOpinion = run && run.rulings && run.rulings.length > 0;
@@ -354,6 +401,25 @@ export default function App() {
 
                         {runError && !running ? <Alert severity="error">{runError}</Alert> : null}
 
+                        {/*
+                          * Beside the verdicts, not instead of them. The court
+                          * sat and these three rulings are what it decided;
+                          * what failed is the writing down. Criterion S22, and
+                          * the reason it is a criterion is that the tempting
+                          * implementation of a failed save is silence.
+                          */}
+                        {recordError && !running ? (
+                            <Alert severity="warning">
+                                This deliberation was not recorded: {recordError}
+                                <Box component="span" sx={{ display: "block", mt: 1 }}>
+                                    The rulings below are the court's. They will not appear
+                                    under Past cases, and they cannot be compared against a
+                                    later run, so copy anything you need before leaving this
+                                    page.
+                                </Box>
+                            </Alert>
+                        ) : null}
+
                         {!running && !hasOpinion && !runError ? (
                             <Alert severity="info">
                                 No sitting yet. Write a charge sheet on the first tab and convene
@@ -393,22 +459,15 @@ export default function App() {
                 ) : null}
 
                 {/* ---------------- compare ---------------- */}
-                {tab === 3 ? <ComparePanel cases={cases} /> : null}
+                {tab === 3 ? <ComparePanel cases={cases} loadCase={loadCase} /> : null}
 
                 {/* ---------------- past cases ---------------- */}
                 {tab === 4 ? (
                     <HistoryPanel
                         cases={cases}
-                        onOpen={function (record) {
-                            setRun(record);
-                            setRunError(null);
-                            setTab(1);
-                        }}
-                        onReuse={function (sheet) {
-                            setChargeSheet(sheet);
-                            setTab(0);
-                            setMessage("Charge sheet loaded. Choose an arrangement and convene.");
-                        }}
+                        error={casesError}
+                        onOpen={openStoredCase}
+                        onReuse={reuseStoredSheet}
                         onDelete={deleteCase}
                     />
                 ) : null}

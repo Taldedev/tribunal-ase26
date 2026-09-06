@@ -42,13 +42,20 @@ simulation rule and is the single most consequential line in the prompts.
 ## How work passes
 
 In code, not in prose instructions. `runCase.js` awaits `Promise.all` over wave
-one, then builds one judge prompt from the structured speech objects and awaits
-`Promise.all` over wave two. No agent hands anything to another agent; the
-orchestrator holds every result and decides what the next wave sees.
+one, then builds one shared judge record from the structured speech objects and
+awaits `Promise.all` over wave two. No agent hands anything to another agent;
+the orchestrator holds every result and decides what the next wave sees.
 
-The handoff carries structure — speaker name, role, text, and a truncation flag
-— assembled into the prompt by `buildJudgePrompt`. It is never flattened to
-prose that the next agent would have to parse back apart.
+**One record, three judges, and that is now visible in the interface rather
+than only in the code.** Each judge receives the same `shared` segment and its
+own `persona`, so "all three judges saw the identical record" is a property a
+test can assert instead of a claim about how the orchestrator happens to be
+written.
+
+The handoff carries structure — speaker name, role, text, and a truncation
+flag — assembled into the shared record by `buildSharedJudgeRecord`, and stored
+in the record's `model_calls` rows the same way. It is never flattened to prose
+that the next agent would have to parse back apart.
 
 **The rule that shapes all of this: never show an agent another agent's
 conclusion.** Judges see speeches, which are arguments. Judges never see
@@ -72,11 +79,26 @@ back to a default answer. An empty seat is reported as an empty seat.
 
 ## What it costs, and what it buys
 
-**Costs.** Seven calls, roughly 16,000–17,000 tokens per deliberation. The
+**Costs.** Seven calls, roughly 24,500 tokens per deliberation, measured on a real run. The
 judges dominate: each reads the charge sheet plus all four speeches, so judge
 prompts run several times the size of speaker prompts. Cost grows faster than
-the agent count for exactly that reason. Parallelism saves time and saves no
-tokens at all.
+the agent count for exactly that reason.
+
+**Parallelism saves time and saves no tokens at all.** The prompt structure is
+what saves tokens, and it saves them in the same place the cost is: the three
+judges read the identical record, so that record is sent as a shared prefix a
+provider can charge for once rather than three times. The four representatives
+share a smaller one.
+
+**And the two pull against each other, which is worth saying plainly.** A
+prefix is cached when a request is processed, and the three judges are
+dispatched together - none has landed when the others start, so none of them
+warms the prefix for its siblings. The saving lands across runs instead: a
+second deliberation on the same charge sheet meets a prefix the provider has
+already seen. So a first run of a fresh sheet reporting `cachedTokens: 0` is
+this arrangement working as designed, and serialising the waves to change that
+would trade the 40 seconds a user waits for a token count that on free models
+is not even the currency that binds. Pitfall 31 in [`spec.md`](spec.md).
 
 On free models the dollar cost is zero and the real currency is **requests per
 day** — seven per run against an allowance of about 50, so roughly seven runs

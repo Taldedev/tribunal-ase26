@@ -38,46 +38,95 @@ part that has to be openable rather than claimed.
 | [`docs/spec.md`](docs/spec.md) | The specification: goal and reason, fifteen checkable criteria, architectural boundaries, validation, known pitfalls |
 | [`docs/coordination.md`](docs/coordination.md) | The multi-agent arrangement: patterns, each agent's role and boundary, how work passes, what happens when one fails, what it costs and buys |
 | [`docs/interfaces.md`](docs/interfaces.md) | The exported surface and data shapes — written so the suite could be built against the specification without reading the source |
+| [`docs/requirements.md`](docs/requirements.md) | **Every requirement mapped to the thing that satisfies it**, module by module, with the command that checks it — and a closing list of what is not done |
+| [`docs/merge-readiness.md`](docs/merge-readiness.md) | The merge gate: five criteria, each with evidence that can be opened, and a table of what is unchecked and by whom |
+| [`docs/case-dossier.md`](docs/case-dossier.md) | Where the case comes from: the dossier itself, the simulation rule, and the three published opinions behind each judge profile |
 
 The specification is the primary artefact. When it and the code disagree, the
 specification is what gets rewritten first.
 
 The tests in `tests/` were written from `docs/spec.md` and `docs/interfaces.md`
 by an agent that was not allowed to read `src/`, so they check what the
-specification asked for rather than what the code happens to do. `npm test`
-runs them and the pre-commit hook refuses a commit that fails them.
+specification asked for rather than what the code happens to do. 365 of them.
+`npm test` runs them, the pre-commit hook refuses a commit that fails them, and
+`npm install` installs that hook — a gate activated by a line in a README is a
+gate that no fresh clone has.
+
+On its first run against version 3 of the specification that method found four
+defects and four faults in the documents. The worst of them would have made
+every stored run of arrangement B report one model across all seven seats, with
+nothing failing anywhere. They are recorded as pitfalls 27–30 in
+`docs/spec.md`.
 
 ---
 
 ## What you need before it will run
 
-**An OpenRouter key.** Get one at <https://openrouter.ai/keys>. Free models
-still require an account and a key; they just do not charge for tokens.
+**An OpenRouter key**, for the models. Get one at <https://openrouter.ai/keys>.
+Free models still require an account and a key; they just do not charge for
+tokens.
 
-The key is never in the browser bundle. It is read only inside the three
-serverless functions in `netlify/functions/`, which is the one place in the
-project that holds it.
+**A Supabase project**, for the record. Create one at <https://supabase.com>,
+run [`supabase/schema.sql`](supabase/schema.sql) in its SQL editor, and take
+`SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` from Project Settings → API.
+
+Then prove it rather than assume it:
+
+```bash
+npm run check:record
+```
+
+It writes a probe deliberation with one logged call, reads both back, checks
+that an **unauthenticated** request gets nothing — which is the only way to
+find out whether row-level security is actually on — and deletes the probe
+again. It reads `.env` and prints neither value. A variable being set is not
+the same as a record being connected, and the difference is usually discovered
+through a deployment that looks fine.
+
+Without the Supabase pair the app still runs and still deliberates. It simply
+keeps nothing, and says so on screen rather than pretending otherwise.
+
+**Neither key is ever in the browser bundle.** Each is read only inside the
+functions in `netlify/functions/`, and the service-role key bypasses row-level
+security by design — which is the whole reason it lives on that side of the
+wire. `npm run verify` proves both are absent from the bundle and from every
+commit that has ever existed.
 
 ---
 
 ## Running it locally
 
 ```bash
-npm install
-cp .env.example .env        # then put your key in .env
-git config core.hooksPath scripts   # installs the secret-scanning hook
-npx netlify-cli login       # first time only
+npm install                 # also installs the pre-commit gate and netlify dev
+cp .env.example .env        # then put your keys in .env
 npm run dev                 # http://localhost:8888
 ```
+
+`npm run dev` fetches a pinned `netlify-cli` through `npx` rather than
+installing it into this project or asking you to install it globally, so there
+is no setup step that can fail differently on someone else's machine and no
+1,000-package dev tool in the lock file. The first run downloads it; after that
+it is cached.
+
+`npm install` sets `core.hooksPath` through a `prepare` script, so the
+credential scan and the test suite guard every commit in a fresh clone without
+anyone reading this file. Check it with `git config --get core.hooksPath`.
 
 `npm run dev` runs `netlify dev`, which serves the Vite front end and the
 functions together. **`npm run dev:vite` alone will not work** — Vite has no way
 to serve `/api/openrouter`, so every call fails.
 
-Put the key in **`.env`**, not `.env.example`. `.env` is ignored by git;
+Put the keys in **`.env`**, not `.env.example`. `.env` is ignored by git;
 `.env.example` is committed as the template, and a key pasted into it will be
 published. The pre-commit hook refuses any commit carrying a credential, but
 the hook is the backstop, not the plan.
+
+**A placeholder is refused as firmly as a missing key.** Copying
+`.env.example` and forgetting to edit a line is the most likely way to get
+here, and it used to produce "OpenRouter refused the call: User not found" —
+which sends you to look at your OpenRouter account instead of at the line you
+never edited. Both functions now say which variable is still a placeholder and
+where it belongs.
 
 ---
 
@@ -86,18 +135,25 @@ the hook is the backstop, not the plan.
 1. Push the repository to GitHub.
 2. On Netlify: **Add new site → Import an existing project**, pick the repo.
    Build command and publish directory are already set in `netlify.toml`.
-3. **Site configuration → Environment variables:** add `OPENROUTER_API_KEY`.
-   `OPENROUTER_APP_URL` and `OPENROUTER_APP_TITLE` are optional — without them
-   the function uses its own origin.
+3. **Site configuration → Environment variables:** add `OPENROUTER_API_KEY`,
+   `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY`. `OPENROUTER_APP_URL` and
+   `OPENROUTER_APP_TITLE` are optional — without them the function uses its own
+   origin.
 4. **Trigger a redeploy.** Functions pick up environment variables at build
    time, not live, so a changed key does nothing until the site rebuilds.
 5. Check **Access & security → Visitor access** is *Public*. Netlify sites can
    ship gated to team members only, which returns 401 to everyone else — the
    app looks broken when it is merely private.
+6. On GitHub: **Settings → Branches → protect `main` → require the `gate`
+   check.** Until this is set, CI reports and does not refuse. Module 13 asks
+   for a merge the tools decline mechanically, and this is the one part of that
+   which cannot live in a file in the repository.
 
 ---
 
 ## The case
+
+Live at **<https://majestic-kleicha-f115c0.netlify.app/>**.
 
 **Case T-001, The Realm v. Jon Snow**, is the canonical charge sheet from the
 course's case design dossier and ships as the worked example. It carries the
@@ -212,8 +268,28 @@ possible, so:
 - The cap defaults to **$0.25** and cannot be set above $5.
 - `netlify/functions/openrouter.js` caps `max_tokens` server-side, so a
   tampered browser still cannot make one call arbitrarily expensive.
-- Every call's tokens, charge and elapsed time are logged and shown on **The
-  bill**.
+- Every call's tokens, charge, cached tokens and elapsed time are logged, shown
+  on **The bill**, and stored as its own row in the record.
+
+### The prefix that is paid for once
+
+One prompt is three segments: a **shared record**, then the agent's own
+persona, then the word to act. The shared record goes first and is
+byte-identical for every agent in a wave — the four representatives read the
+same charge sheet, and the three judges read the same charge sheet *and the
+same four speeches*, which is the largest block in the whole run and the reason
+the judges dominate the bill. Sent in that order it is a prefix a provider can
+serve from cache and charge for once.
+
+The saving is **reported, not asserted**. `cachedTokens` comes from whatever
+the provider says it served from cache and is never inferred from the prompt; a
+missing figure is zero. A run showing zero saved nothing, whatever this section
+claims.
+
+The old order made the whole thing impossible in a way that was not obvious:
+each agent's persona came first and the shared material came after it, so the
+same charge sheet began at a different token offset in all seven calls. Nothing
+was identical and nothing was first.
 
 Prices come from the live OpenRouter catalogue rather than a hard-coded table,
 because names and prices there change from week to week and a stale price list
@@ -303,11 +379,21 @@ repeated the invention as a finding.
 
 ```
 netlify/functions/
-  openrouter.js      the only place the API key exists; one chat call
+  openrouter.js      the only place the model key exists; one chat call
   models.js          the live catalogue, filtered to text-only chat models
   account.js         what the key is allowed to do: tier, credit, allowance
+  cases.js           the only place the database key exists; the record
+supabase/
+  schema.sql         two tables, and row-level security on with no policies
+security-patterns.yaml   the credential shapes, read by all three barriers
+.claude/
+  agents/            the merge reviewer, and the test writer that cannot read src/
+  skills/            the Merge-Readiness Pack as a command
+  settings.json      a PreToolUse hook that refuses a write carrying a key
 scripts/
-  pre-commit         refuses any commit carrying a credential
+  pre-commit         refuses any commit carrying a credential, and runs the suite
+  guard-secrets.sh   the write hook — the earliest of the three barriers
+  secret-patterns.sh reads the pattern list, so there is only one list
 src/
   constants.js       seven calls, the verdict vocabularies, the budget ceiling
   theme.js           the palette; the only meaningful colours are the verdicts
@@ -318,7 +404,7 @@ src/
     runCase.js       the orchestrator: two waves, the budget guard, the call log
     modelChoice.js   which models the pickers open on, and how B spreads them
   lib/
-    casesDb.js       IndexedDB — every finished case, kept in full
+    casesApi.js      the record, over /api/cases — holds no credential
     money.js         token and cost arithmetic, and the formatting for it
   components/        one file per panel of the screen
 ```

@@ -56,10 +56,22 @@ export async function callModel(options) {
             const response = await fetch(CHAT_ENDPOINT, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
+                /*
+                 * The three segments are sent as three named fields rather
+                 * than as a messages array. The function then builds the array
+                 * itself, which keeps it from becoming a general-purpose proxy
+                 * that anyone can send arbitrary conversations through at the
+                 * site owner's expense.
+                 *
+                 * The order the function assembles them in is the cost lever:
+                 * shared first, so that four speakers - and, far more
+                 * expensively, three judges - present the same prefix.
+                 */
                 body: JSON.stringify({
                     model: options.model,
-                    system: options.system,
-                    user: options.user,
+                    shared: options.segments.shared,
+                    persona: options.segments.persona,
+                    user: options.segments.user,
                     maxTokens: options.maxTokens,
                     temperature: options.temperature
                 }),
@@ -107,7 +119,9 @@ export async function callModel(options) {
             clearTimeout(timeoutId);
             lastError =
                 error.name === "AbortError"
-                    ? "The model did not answer within 90 seconds."
+                    ? "The model did not answer within " +
+                      Math.round(CALL_TIMEOUT_MS / 1000) +
+                      " seconds and the call was abandoned."
                     : "The call could not be made: " + error.message;
         }
     }
@@ -153,8 +167,17 @@ export async function pingModel(modelId) {
     const startedAt = Date.now();
     const result = await callModel({
         model: modelId,
-        system: "Reply with exactly the word OK and nothing else.",
-        user: "Reply now.",
+        /*
+         * A ping has no persona and nothing shared with anybody, so the
+         * segments carry the whole of it in the first one. It is the same
+         * contract every other call uses; there is no second path to the
+         * network.
+         */
+        segments: {
+            shared: "Reply with exactly the word OK and nothing else.",
+            persona: "",
+            user: "Reply now."
+        },
         maxTokens: 8,
         temperature: 0
     });
