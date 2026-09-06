@@ -16,15 +16,35 @@ import {
     CALLS_PER_RUN,
     MAX_BUDGET_USD
 } from "../constants.js";
+import { SPEAKERS, JUDGES } from "./personas.js";
 import {
-    SPEAKERS,
-    JUDGES,
-    speakerSystemPrompt,
-    judgeSystemPrompt
-} from "./personas.js";
-import { buildSpeakerPrompt, buildJudgePrompt, parseVerdict, tallyVerdicts } from "./protocol.js";
+    buildSharedSpeakerRecord,
+    buildSharedJudgeRecord,
+    buildSpeakerMessages,
+    buildJudgeMessages,
+    parseVerdict,
+    tallyVerdicts
+} from "./protocol.js";
 import { callModel } from "./client.js";
 import { computeCallCost, estimateTokens, estimateRunCost } from "../lib/money.js";
+
+/*
+ * How many prompt tokens the provider served from its cache.
+ *
+ * Providers report this in different places and some do not report it at all,
+ * so a missing figure is zero rather than unknown: the run either has evidence
+ * that caching happened or it has none, and "none" is the honest default. It
+ * is never inferred from the prompt, because an inferred saving is a claim
+ * about the bill rather than a reading of it.
+ */
+function cachedTokensOf(usage) {
+    if (!usage) {
+        return 0;
+    }
+    const details = usage.promptTokensDetails || {};
+    const reported = usage.cachedTokens ?? details.cachedTokens;
+    return typeof reported === "number" && reported > 0 ? reported : 0;
+}
 
 function newRunId() {
     return "case-" + Date.now().toString(36) + "-" + Math.random().toString(36).slice(2, 7);
@@ -68,7 +88,7 @@ export function distinctModelCount(agentModels) {
  */
 export function planRun(chargeSheet, config, singleModel, perAgent) {
     const agentModels = resolveAgentModels(config, singleModel, perAgent);
-    const speakerPrompt = buildSpeakerPrompt(chargeSheet);
+    const speakerPrompt = buildSharedSpeakerRecord(chargeSheet);
     const speakerPromptTokens = estimateTokens(speakerPrompt) + 400;
 
     // A judge reads the sheet plus four speeches, each of which can run to the
@@ -173,7 +193,6 @@ export async function runCase(options) {
     // ---- Wave one: the four speeches, all at the same time ----------------
     onProgress({ type: "stage", stage: "speeches", status: "started" });
 
-    const speakerPrompt = buildSpeakerPrompt(chargeSheet);
     const waveOneStarted = Date.now();
 
     const speeches = await Promise.all(
@@ -181,8 +200,7 @@ export async function runCase(options) {
             const callStarted = Date.now();
             const result = await call({
                 model: agentModels[speaker.id].id,
-                system: speakerSystemPrompt(speaker, chargeSheet),
-                user: speakerPrompt,
+                segments: buildSpeakerMessages(chargeSheet, speaker),
                 maxTokens: SPEECH_MAX_TOKENS,
                 temperature: 0.8
             });
@@ -204,6 +222,7 @@ export async function runCase(options) {
                 promptTokens: result.ok ? result.usage.promptTokens : 0,
                 completionTokens: result.ok ? result.usage.completionTokens : 0,
                 totalTokens: result.ok ? result.usage.totalTokens : 0,
+                cachedTokens: result.ok ? cachedTokensOf(result.usage) : 0,
                 costUsd: cost,
                 elapsedMs: result.ok ? result.elapsedMs : 0,
                 roundTripMs: Date.now() - callStarted,
@@ -268,7 +287,6 @@ export async function runCase(options) {
     // ---- Wave two: the three rulings, all at the same time ----------------
     onProgress({ type: "stage", stage: "verdicts", status: "started" });
 
-    const judgePrompt = buildJudgePrompt(chargeSheet, speeches);
     const waveTwoStarted = Date.now();
 
     const rulings = await Promise.all(
@@ -276,8 +294,7 @@ export async function runCase(options) {
             const callStarted = Date.now();
             const result = await call({
                 model: agentModels[judge.id].id,
-                system: judgeSystemPrompt(judge, chargeSheet),
-                user: judgePrompt,
+                segments: buildJudgeMessages(chargeSheet, speeches, judge),
                 maxTokens: VERDICT_MAX_TOKENS,
                 temperature: 0.4
             });
@@ -298,6 +315,7 @@ export async function runCase(options) {
                     error: result.error,
                     promptTokens: 0,
                     completionTokens: 0,
+                    cachedTokens: 0,
                     totalTokens: 0,
                     costUsd: 0,
                     elapsedMs: 0,
@@ -348,6 +366,7 @@ export async function runCase(options) {
                 promptTokens: result.usage.promptTokens,
                 completionTokens: result.usage.completionTokens,
                 totalTokens: result.usage.totalTokens,
+                cachedTokens: cachedTokensOf(result.usage),
                 costUsd: cost,
                 elapsedMs: result.elapsedMs,
                 roundTripMs: Date.now() - callStarted,
@@ -416,6 +435,7 @@ function summarise(calls, wallMs, waveOneMs, waveTwoMs) {
                 promptTokens: sum.promptTokens + call.promptTokens,
                 completionTokens: sum.completionTokens + call.completionTokens,
                 totalTokens: sum.totalTokens + call.totalTokens,
+                cachedTokens: sum.cachedTokens + (call.cachedTokens || 0),
                 costUsd: sum.costUsd + call.costUsd,
                 /*
                  * Two different clocks, and confusing them makes parallelism
@@ -434,7 +454,15 @@ function summarise(calls, wallMs, waveOneMs, waveTwoMs) {
                 modelMs: sum.modelMs + call.elapsedMs
             };
         },
-        { promptTokens: 0, completionTokens: 0, totalTokens: 0, costUsd: 0, sequentialMs: 0, modelMs: 0 }
+        {
+            promptTokens: 0,
+            completionTokens: 0,
+            totalTokens: 0,
+            cachedTokens: 0,
+            costUsd: 0,
+            sequentialMs: 0,
+            modelMs: 0
+        }
     );
 
     totals.callCount = calls.length;

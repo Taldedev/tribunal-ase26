@@ -18,6 +18,13 @@ export function estimateTokens(text) {
  * OpenRouter returns the real charge when it can work it out, and that number
  * is preferred over the price list, because a model's listed price and the
  * price actually charged can differ for cached or discounted tokens.
+ *
+ * When there is no reported charge the fallback bills every prompt token at
+ * full list price, including the ones the provider served from its cache. That
+ * makes the fallback a worst case rather than an estimate, which is the right
+ * direction to be wrong in for a figure a budget cap is checked against - and
+ * it is why usage.cachedTokens is displayed as evidence beside the cost rather
+ * than quietly subtracted from it.
  */
 export function computeCallCost(usage, model) {
     if (!usage) {
