@@ -107,7 +107,9 @@ export async function callModel(options) {
             clearTimeout(timeoutId);
             lastError =
                 error.name === "AbortError"
-                    ? "The model did not answer within 90 seconds."
+                    ? "The model did not answer within " +
+                      Math.round(CALL_TIMEOUT_MS / 1000) +
+                      " seconds and the call was abandoned."
                     : "The call could not be made: " + error.message;
         }
     }

@@ -68,10 +68,10 @@ export function buildJudgePrompt(chargeSheet, speeches) {
             parts.push(
                 "This speech was not delivered. The speaker's call failed: " +
                     speech.error +
-                    " Rule on the case without it, and take account of the fact that " +
-                    "this side was heard from " +
-                    (speech.role === "Prosecution" ? "less" : "less") +
-                    " fully than the other."
+                    " Rule on the case without it, and take account of the fact " +
+                    "that the " +
+                    speech.role.toLowerCase() +
+                    " was heard from less fully than the other side."
             );
         }
         parts.push("</speech>");
