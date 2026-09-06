@@ -157,6 +157,10 @@ setting that this work could not supply.
 | **The schema runs against a real Postgres, and a row can be written** | `npm run check:record`, 8 of 8: both tables exist, a probe case and its call row were written, both read back, and deleting the case took its call with it on the foreign key's cascade. The tables are no longer untested against anything but the suite |
 | **The endpoint is not open to the anonymous internet** | the same run: a request carrying no key at all was refused |
 | **Row-level security is really on** | the same run, 9 of 9 with `SUPABASE_ANON_KEY` present: the anonymous key — the only one RLS applies to — reads nothing from either table. The service-role key bypasses RLS by design, so this is the one check that could not be made with it |
+| **`/api/cases` reaches the record** | `npm run dev`, then `GET http://localhost:8888/api/cases` → `{"cases":[]}`. The function read its service key, reached Supabase and returned a listing — so the path the application actually uses is proven, not only the database behind it |
+| **`/api/models` reaches the catalogue** | the same server: the header reports 672 models available, read live rather than from the fallback list |
+| **A placeholder key is refused with a message that names it** | the same server: `POST /api/openrouter` with `.env` still carrying `sk-or-v1-replace-me` answered with which variable is unset and where it belongs, instead of an upstream "User not found" |
+| **The app loads and the canonical sheet loads into it** | the same server: the charge sheet form renders and the T-001 chip fills it with the dossier's own text |
 
 That moves S20 and S21 from *satisfied in code* to *satisfied in operation* at
 the database layer. It does **not** cover the function in front of it — see the
@@ -166,8 +170,10 @@ first row below.
 
 | What | Why it is unchecked | Who checks it |
 |---|---|---|
-| **`/api/cases` itself** | `check:record` talks to Supabase directly, so it proves the schema and the key and not the function that will actually use them. S22 in particular — a refused save reported beside the verdicts — has never been seen happen | run `netlify dev` and put a case, or read Past cases on the deployed site |
-| **A case read back in a second browser** | The round trip is proven; the point of it is not | the same person, after the above |
+| **A deliberation, end to end** | Needs a real `OPENROUTER_API_KEY`. Everything around the model call is now verified live; the seven calls themselves are not, so S1 through S6 and S19 rest on the suite alone | put the key in `.env`, press Convene, and read The opinion |
+| **S22 — a refused save reported beside the verdicts** | The record is working, so the failure this criterion describes has never occurred here. It is the one criterion whose evidence requires breaking something on purpose | stop the record (unset `SUPABASE_URL`), run a case, and check the banner appears beside real verdicts |
+| **A case read back in a second browser** | The listing is proven through the function; a case written by one browser and read by another is not | run a case, then open the site in a second browser |
+| **`cachedTokens` non-zero on a real call** | Needs a live model call, and per pitfall 31 it will only show on a *second* run of the same charge sheet — the calls in a wave are concurrent, so none warms the prefix for its siblings | run the same sheet twice and read The bill |
 | **A non-zero `cachedTokens` on a real call** | Needs a live model call. The plumbing is tested; whether any chosen provider actually serves the prefix from cache is a fact about that provider, not about this code | run the same charge sheet twice and read The bill |
 | **The cache breakpoint being refused, and the retry** | Pitfall 22 is a prediction. No provider has yet rejected it here | first live run against a provider that does |
 | **CI passing** | The repository has not been pushed | GitHub, on the first push |
