@@ -198,13 +198,16 @@ merged `main`.
 
 ### Still unchecked
 
+Three, and each one needs something this work could not supply: a provider's
+behaviour, or money.
+
 | What | Why it is unchecked | Who checks it |
 |---|---|---|
-| **Arrangement B, and the comparison** | Both runs were arrangement A. B needs seven models that all answer, and 2 of 4 free models answered when pinged — so this is a real cost in requests, not a formality | pick seven, use Test these models, then Compare |
-| **A non-zero `cachedTokens` on a real call** | Needs a live model call. The plumbing is tested; whether any chosen provider actually serves the prefix from cache is a fact about that provider, not about this code | run the same charge sheet twice and read The bill |
-| **The cache breakpoint being refused, and the retry** | Pitfall 22 is a prediction. No provider has yet rejected it here | first live run against a provider that does |
-| **The deployed site serving this work at all** | Visitor access is now Public and the site answers 200 — but it is serving **`main`, the import commit**, so none of the work is live. Proven three ways: the bundle contains `IndexedDB` and `tribunaldb` and not `/api/cases`, `From cache` or `was not recorded`; `/api/cases` returns the SPA's own HTML through the catch-all redirect rather than JSON, because that function does not exist on `main`; and `/api/openrouter` answers *"Both a system prompt and a user prompt are required"* to the segment contract, which is the pre-caching signature | merge the pull request and redeploy, or Netlify → Build & deploy → **Branches → production branch → `spec/v3`** |
-| **`OPENROUTER_API_KEY` on Netlify** | Set to something empty or blank rather than unset. `/api/account` and `/api/openrouter` both answer *"Missing Authentication header"*, which is OpenRouter refusing a `Bearer` with nothing after it — an unset variable would have produced the function's own message instead. `/api/models` still works because that catalogue needs no key, which is exactly why it is not evidence that the key is right | Netlify → Site configuration → Environment variables → re-enter `OPENROUTER_API_KEY`, then **redeploy** — functions read the environment at build time |
+| **A real panel split, and arrangement B against A** | The comparison is the reason the project builds both arrangements, and it needs seven models that answer. Three free models answer today: 12 were pinged, 2 replied on the first pass and 1 on a second. So the closest run possible put the four speakers on one model and the three judges on three — `distinct models reached: 3 of 7`, which the app reported rather than claiming B — and the two judges that ruled, on two genuinely different providers, **agreed**. That is a result, not a failure, but it is not a split | $10 of credit unlocks paid models at about $0.0004 a deliberation. Then seven distinct seats, and Compare |
+| **The cache breakpoint being refused, and the retry** | Pitfall 22 is still a prediction. No provider has rejected the marker here, so the fallback path that retries without it has never run | the first live call to a provider that refuses it |
+| **A truncated ruling reaching the record** | The truncation flag is carried, stored and displayed, and every measured run either delivered or timed out. `finishReason === "length"` has not been observed end to end | a reasoning model that fills its allowance inside the 24s window |
+
+Every other row in this document is evidence that can be opened.
 
 ## The judging act
 
