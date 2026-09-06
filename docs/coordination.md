@@ -42,12 +42,19 @@ simulation rule and is the single most consequential line in the prompts.
 ## How work passes
 
 In code, not in prose instructions. `runCase.js` awaits `Promise.all` over wave
-one, then builds one judge prompt from the structured speech objects and awaits
-`Promise.all` over wave two. No agent hands anything to another agent; the
-orchestrator holds every result and decides what the next wave sees.
+one, then builds one shared judge record from the structured speech objects and
+awaits `Promise.all` over wave two. No agent hands anything to another agent;
+the orchestrator holds every result and decides what the next wave sees.
+
+**One record, three judges, and that is now visible in the interface rather
+than only in the code.** Each judge receives the same `shared` segment and its
+own `persona`, so "all three judges saw the identical record" is a property a
+test can assert instead of a claim about how the orchestrator happens to be
+written.
 
 The handoff carries structure — speaker name, role, text, and a truncation flag
-— assembled into the prompt by `buildJudgePrompt`. It is never flattened to
+— assembled into the shared record by `buildSharedJudgeRecord`. It is never
+flattened to
 prose that the next agent would have to parse back apart.
 
 **The rule that shapes all of this: never show an agent another agent's
