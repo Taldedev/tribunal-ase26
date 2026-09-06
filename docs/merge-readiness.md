@@ -177,12 +177,14 @@ first row below.
 | **A case is written and read back through `/api/cases` (S20)** | both deliberations appear under Past cases, listed from Supabase through the function, with their verdicts, tokens and cache figures |
 | **Three judges on one model agree (M14's own claim)** | both runs: unanimous NOT JUSTIFIED across all three judges. Arrangement A sharing one model's blind spot is the thing the project asserts, and it is now observed |
 | **The simulation rule holds** | Barak's ruling rested on Tyrion's argument — a defence-seat representative reasoning against the side that called him, which is the dossier's design working |
+| **S22 — a refused save is reported beside the verdicts** | The record was broken on purpose (`SUPABASE_URL` overridden for one dev process; `.env` untouched) and a real deliberation run. Three verdicts appeared, and beside them: *"This deliberation was not recorded: The record is not configured… The rulings below are the court's. They will not appear under Past cases…"* The court sitting and the record failing were reported as the two different events they are |
+| **The two failures do not wear each other's clothes** | On the same run, Past cases said *"Past cases could not be read… this list cannot say whether there are any"* rather than "No case has been heard yet". An unreachable record is not an empty one, and the panel distinguishes them |
+| **And the record recovers** | Restarting with the real configuration: `/api/cases` back to 200, the three earlier cases still there. The failure was in the configuration, not in the data |
 
 ### Still unchecked
 
 | What | Why it is unchecked | Who checks it |
 |---|---|---|
-| **S22 — a refused save reported beside the verdicts** | The record is working, so the failure this criterion describes has never occurred here. It is the one criterion whose evidence requires breaking something on purpose | stop the record (unset `SUPABASE_URL`), run a case, and check the banner appears beside real verdicts |
 | **A case read back in a second browser** | The listing is proven through the function; a case written by one browser and read by another is not | open the site in a second browser |
 | **Arrangement B, and the comparison** | Both runs were arrangement A. B needs seven models that all answer, and 2 of 4 free models answered when pinged — so this is a real cost in requests, not a formality | pick seven, use Test these models, then Compare |
 | **A non-zero `cachedTokens` on a real call** | Needs a live model call. The plumbing is tested; whether any chosen provider actually serves the prefix from cache is a fact about that provider, not about this code | run the same charge sheet twice and read The bill |
