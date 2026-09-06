@@ -52,10 +52,10 @@ own `persona`, so "all three judges saw the identical record" is a property a
 test can assert instead of a claim about how the orchestrator happens to be
 written.
 
-The handoff carries structure — speaker name, role, text, and a truncation flag
-— assembled into the shared record by `buildSharedJudgeRecord`. It is never
-flattened to
-prose that the next agent would have to parse back apart.
+The handoff carries structure — speaker name, role, text, and a truncation
+flag — assembled into the shared record by `buildSharedJudgeRecord`, and stored
+in the record's `model_calls` rows the same way. It is never flattened to prose
+that the next agent would have to parse back apart.
 
 **The rule that shapes all of this: never show an agent another agent's
 conclusion.** Judges see speeches, which are arguments. Judges never see
