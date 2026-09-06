@@ -154,7 +154,19 @@ function readCaseRow(input) {
             totals: input.totals && typeof input.totals === "object" ? input.totals : null,
             tally: input.tally && typeof input.tally === "object" ? input.tally : null,
             budget_usd: readNumber(input.budget_usd),
-            ok: readBoolean(input.ok)
+            ok: readBoolean(input.ok),
+            /*
+             * Which model sat in which seat. Stored because the comparison
+             * between the two arrangements is read back from here, and its
+             * subject is how many genuinely different models a run reached -
+             * a stored run that cannot say reports one model in seven seats,
+             * which is a wrong figure rather than a missing one.
+             */
+            agent_models:
+                input.agent_models && typeof input.agent_models === "object"
+                    ? input.agent_models
+                    : null,
+            distinct_models: readNumber(input.distinct_models) || null
         }
     };
 }
@@ -196,6 +208,9 @@ function readCallRows(input, runId) {
             // counting when a free model is chosen again.
             error: readText(call.error, 2000),
             verdict: readText(call.verdict, 120),
+            // An answer that filled its allowance stopped mid-thought, which
+            // is a different outcome from a short one everywhere else here.
+            truncated: readBoolean(call.truncated),
             prompt_tokens: readNumber(call.prompt_tokens),
             completion_tokens: readNumber(call.completion_tokens),
             total_tokens: readNumber(call.total_tokens),
@@ -257,10 +272,20 @@ export default async function handler(request) {
     }
 
     if (request.method === "GET" && runId === null) {
+        /*
+         * The browser asks for a page size and this clamps it. The browser's
+         * bound is a courtesy; this one is the control - part 3's rule is that
+         * the browser enforces no rule that matters, and an unbounded listing
+         * is a way to make one request expensive.
+         */
+        const asked = Number(url.searchParams.get("limit"));
+        const limit =
+            isFinite(asked) && asked > 0 ? Math.min(Math.round(asked), MAX_LIST) : MAX_LIST;
+
         const result = await supabase(
-            "cases?select=run_id,created_at,config,charge_sheet,rulings,totals,ok" +
-                "&order=created_at.desc&limit=" +
-                MAX_LIST
+            "cases?select=run_id,created_at,config,charge_sheet,rulings,totals,ok," +
+                "distinct_models&order=created_at.desc&limit=" +
+                limit
         );
         if (!result.ok) {
             return jsonResponse({ error: result.error }, 502);

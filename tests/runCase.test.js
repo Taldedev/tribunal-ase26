@@ -2,11 +2,16 @@
 // failure handling.
 //
 // Sources: docs/spec.md §1, S1, S3, S4, S5, S6, S7, S8, S11, S12, S14, S15,
-// §3, §5 pitfalls 3, 5, 9, 10; docs/coordination.md ("How work passes",
-// "When an agent fails").
+// S17, S18, S19, §3, §5 pitfalls 3, 5, 9, 10, 21; docs/coordination.md ("How
+// work passes", "When an agent fails").
 //
 // Every model call is the injected `call` from docs/interfaces.md. Nothing
 // here touches the network.
+//
+// The transport contract changed with spec version 3: `call` receives
+// `{ model, segments: { shared, persona, user }, maxTokens, temperature }`.
+// "There is no composed `system` string any more, because composing it is what
+// destroyed the shared prefix" (docs/interfaces.md).
 
 import { test, describe } from "node:test";
 import assert from "node:assert/strict";
@@ -33,6 +38,7 @@ import {
     allKeys,
     AGGREGATE_KEY_PATTERN,
     defaultSpeech,
+    wholePrompt,
 } from "./helpers.js";
 
 const SINGLE_MODEL = model("vendor/single");
@@ -303,7 +309,7 @@ describe("runCase · S4 · no judge sees another judge's output", () => {
                 return { text };
             },
         });
-        const prompts = call.verdictCalls().map((r) => `${r.options.system}\n${r.options.user}`);
+        const prompts = call.verdictCalls().map((r) => wholePrompt(r.options.segments));
         for (const judge of JUDGES) {
             for (const prompt of prompts) {
                 assert.ok(
@@ -318,20 +324,20 @@ describe("runCase · S4 · no judge sees another judge's output", () => {
         // coordination.md, N-version: "The same complete record to three agents
         // that never see each other's work."
         const { call } = await run();
-        const users = call.verdictCalls().map((r) => r.options.user);
-        assert.equal(users.length, 3);
-        assert.equal(new Set(users).size, 1, "the three judges were given different records");
+        const records = call.verdictCalls().map((r) => r.options.segments.shared);
+        assert.equal(records.length, 3);
+        assert.equal(new Set(records).size, 1, "the three judges were given different records");
     });
 
-    test("§1 · the three judges are separated by system prompt, not by record", async () => {
+    test("§1 · the three judges are separated by persona segment, not by record", async () => {
         const { call } = await run();
-        const systems = call.verdictCalls().map((r) => r.options.system);
-        assert.equal(new Set(systems).size, 3, "two judges were given the same system prompt");
+        const personas = call.verdictCalls().map((r) => r.options.segments.persona);
+        assert.equal(new Set(personas).size, 3, "two judges were given the same persona segment");
     });
 
     test("S4 · the record a judge receives holds all four speeches", async () => {
         const { call } = await run();
-        const record = call.verdictCalls()[0].options.user;
+        const record = call.verdictCalls()[0].options.segments.shared;
         for (const speaker of SPEAKERS) {
             assert.ok(
                 record.includes(`SENTINEL-${speaker.id}`),
@@ -354,9 +360,9 @@ describe("runCase · S4 · no judge sees another judge's output", () => {
         const { call } = await run();
         const unmatched = call.records.filter((r) => !r.matchedPersona);
         assert.deepEqual(
-            unmatched.map((r) => r.options.system.slice(0, 60)),
+            unmatched.map((r) => String(r.options.segments?.persona).slice(0, 60)),
             [],
-            "a call was sent with a system prompt that personas.js did not produce",
+            "a call was sent with a persona segment that personas.js did not produce",
         );
     });
 });
@@ -397,8 +403,12 @@ describe("runCase · S15 · arrangement B assigns a model per seat", () => {
                     b.call.records.map((r) => r.stage),
                 );
                 assert.deepEqual(
-                    a.call.records.map((r) => r.options.user),
-                    b.call.records.map((r) => r.options.user),
+                    a.call.records.map((r) => r.options.segments.shared),
+                    b.call.records.map((r) => r.options.segments.shared),
+                );
+                assert.deepEqual(
+                    a.call.records.map((r) => r.options.segments.user),
+                    b.call.records.map((r) => r.options.segments.user),
                 );
             },
         );
@@ -668,7 +678,7 @@ describe("runCase · coordination.md · when a speaker fails", () => {
         const { call } = await run({
             behaviour: ({ agentId }) => (agentId === emptySeat ? { ok: false, error: "502" } : {}),
         });
-        const record = call.verdictCalls()[0].options.user;
+        const record = call.verdictCalls()[0].options.segments.shared;
         assert.ok(record.includes(emptyName), `${emptyName}'s empty seat is not mentioned in the record`);
         assert.ok(
             /(empty|did not|no speech|failed|unavailable|no answer|silent|absent)/i.test(record),
@@ -744,6 +754,11 @@ describe("runCase · S11 · the call log", () => {
             assert.ok(Number.isFinite(entry.elapsedMs));
             assert.ok(["speech", "verdict"].includes(entry.stage), `stage was "${entry.stage}"`);
             assert.equal(typeof entry.agent, "string");
+            // S11 counts six fields, and cached tokens is the sixth: "Each
+            // call's model, verdict, tokens, cached tokens, cost and elapsed
+            // time are recorded."
+            assert.equal(typeof entry.cachedTokens, "number", "cachedTokens missing");
+            assert.ok(Number.isFinite(entry.cachedTokens), `cachedTokens was ${entry.cachedTokens}`);
         }
     });
 
@@ -791,6 +806,232 @@ describe("runCase · S11 · the call log", () => {
         for (const entry of result.calls) {
             assert.equal(entry.costUsd, 0, `a failed call was billed ${entry.costUsd}`);
         }
+    });
+});
+
+// ---------------------------------------------------------------------------
+// S17, S18 — the cacheable shared prefix, seen at the transport
+// ---------------------------------------------------------------------------
+
+describe("runCase · S17 and S18 · the shared segment as the calls actually receive it", () => {
+    test("S18 · every call receives segments and no composed system string", async () => {
+        // docs/interfaces.md: "`call` now receives `segments` where it used to
+        // receive `system` and `user`. There is no composed `system` string
+        // any more."
+        const { call } = await run();
+        assert.equal(call.records.length, 7);
+        for (const record of call.records) {
+            const { segments } = record.options;
+            assert.equal(typeof segments, "object", `${record.agentId} was called without segments`);
+            assert.notEqual(segments, null);
+            assert.deepEqual(
+                Object.keys(segments),
+                ["shared", "persona", "user"],
+                `${record.agentId}: the segments are not shared-first`,
+            );
+            for (const key of ["shared", "persona", "user"]) {
+                assert.equal(typeof segments[key], "string", `${record.agentId}: segments.${key}`);
+                assert.ok(segments[key].length > 0, `${record.agentId}: segments.${key} is empty`);
+            }
+            assert.equal(
+                record.options.system,
+                undefined,
+                `${record.agentId} was still sent a composed system string`,
+            );
+            assert.equal(record.options.user, undefined, `${record.agentId} was still sent a bare user string`);
+        }
+    });
+
+    test("S17 · within wave one all four calls receive the same shared segment", async () => {
+        const { call } = await run();
+        const shared = call.speechCalls().map((r) => r.options.segments.shared);
+        assert.equal(shared.length, 4);
+        assert.equal(
+            new Set(shared).size,
+            1,
+            "the four speaker calls carried different shared segments; no prefix can be cached",
+        );
+    });
+
+    test("S17 · within wave two all three calls receive the same shared segment", async () => {
+        const { call } = await run();
+        const shared = call.verdictCalls().map((r) => r.options.segments.shared);
+        assert.equal(shared.length, 3);
+        assert.equal(
+            new Set(shared).size,
+            1,
+            "the three judge calls carried different shared segments; no prefix can be cached",
+        );
+    });
+
+    test("S17 · the wave-two shared record is not the wave-one one", async () => {
+        const { call } = await run();
+        const waveOne = call.speechCalls()[0].options.segments.shared;
+        const waveTwo = call.verdictCalls()[0].options.segments.shared;
+        assert.notEqual(waveOne, waveTwo, "the judges were sent wave one's record, without the speeches");
+        for (const speaker of SPEAKERS) {
+            assert.ok(
+                waveTwo.includes(`SENTINEL-${speaker.id}`),
+                `wave two's shared record is missing ${speaker.name}'s speech`,
+            );
+            assert.ok(
+                !waveOne.includes(`SENTINEL-${speaker.id}`),
+                "wave one's shared record already contains a speech that had not been made",
+            );
+        }
+    });
+
+    test("S17 · the shared segment survives one seat failing", async () => {
+        // A failure in wave one changes the record for all three judges
+        // together, or for none of them.
+        const { call } = await run({
+            behaviour: ({ agentId }) =>
+                agentId === SPEAKERS[1].id ? { ok: false, error: "502 bad gateway" } : {},
+        });
+        const shared = call.verdictCalls().map((r) => r.options.segments.shared);
+        assert.equal(new Set(shared).size, 1, "one empty seat split the judges' shared record");
+    });
+
+    test("S18 · no call has agent-specific text prepended to its shared segment", async () => {
+        // §5 pitfall 21: "anything that prepends per-agent text to it silently
+        // undoes it."
+        const { call } = await run({ config: CONFIG_SPLIT });
+        for (const record of call.records) {
+            const { shared, persona } = record.options.segments;
+            const agent = [...SPEAKERS, ...JUDGES].find((a) => a.id === record.agentId);
+            assert.ok(agent, `a call was made for an unknown seat: ${record.agentId}`);
+            assert.ok(
+                !shared.includes(agent.character),
+                `${agent.name}'s character is inside the shared segment`,
+            );
+            assert.ok(
+                !shared.includes(agent.name),
+                `${agent.name} is named inside the shared segment of their own call`,
+            );
+            assert.ok(!shared.includes(persona), `${agent.name}'s persona segment is inside the shared one`);
+        }
+    });
+
+    test("S18 · the persona segment is the agent-specific half, and it differs for all seven", async () => {
+        const { call } = await run({ config: CONFIG_SPLIT });
+        const personas = call.records.map((r) => r.options.segments.persona);
+        assert.equal(
+            new Set(personas).size,
+            7,
+            "two seats were sent the same persona segment; the arrangement then buys nothing",
+        );
+    });
+
+    test("S18 · the user segment is the same act-now instruction for every agent in a wave", async () => {
+        const { call } = await run();
+        const speechUsers = call.speechCalls().map((r) => r.options.segments.user);
+        const verdictUsers = call.verdictCalls().map((r) => r.options.segments.user);
+        assert.equal(new Set(speechUsers).size, 1, "the representatives were told to act in different words");
+        assert.equal(new Set(verdictUsers).size, 1, "the judges were told to rule in different words");
+        assert.notEqual(
+            speechUsers[0],
+            verdictUsers[0],
+            "a representative and a judge were given the same instruction to act",
+        );
+    });
+});
+
+// ---------------------------------------------------------------------------
+// S19 — every call records how many prompt tokens were served from cache
+// ---------------------------------------------------------------------------
+
+describe("runCase · S19 · cached tokens are recorded on every call", () => {
+    test("S19 · every entry carries cachedTokens as a number", async () => {
+        const { result } = await run({
+            behaviour: () => ({
+                usage: { promptTokens: 1200, completionTokens: 400, totalTokens: 1600, cachedTokens: 900 },
+            }),
+        });
+        assert.equal(result.calls.length, 7);
+        for (const entry of result.calls) {
+            assert.equal(typeof entry.cachedTokens, "number", `${entry.agent}: cachedTokens is not a number`);
+            assert.equal(entry.cachedTokens, 900, `${entry.agent}: cachedTokens was ${entry.cachedTokens}`);
+        }
+    });
+
+    test("S19 · cachedTokens is zero when none, never undefined and never NaN", async () => {
+        // "`cachedTokens` is a number on every log entry, zero when none."
+        // A provider that reports nothing is the normal case on the first run
+        // of a sheet, and it must read as zero rather than as absent.
+        const { result } = await run({
+            behaviour: () => ({ usage: { promptTokens: 500, completionTokens: 100, totalTokens: 600 } }),
+        });
+        for (const entry of result.calls) {
+            assert.equal(
+                entry.cachedTokens,
+                0,
+                `${entry.agent}: a provider that reported no cache produced cachedTokens ${entry.cachedTokens}`,
+            );
+        }
+    });
+
+    test("S19 · a failed call still carries cachedTokens as a number", async () => {
+        const { result } = await run({ behaviour: () => ({ ok: false, error: "no response" }) });
+        assert.equal(result.calls.length, 4, "wave two was called with nothing to weigh");
+        for (const entry of result.calls) {
+            assert.equal(typeof entry.cachedTokens, "number", `${entry.agent}: cachedTokens is not a number`);
+            assert.equal(entry.cachedTokens, 0, `a failed call reported ${entry.cachedTokens} cached tokens`);
+        }
+    });
+
+    test("S19 · totals.cachedTokens is the sum of the call log", async () => {
+        const { result } = await run({
+            behaviour: ({ order }) => ({
+                usage: {
+                    promptTokens: 1000,
+                    completionTokens: 200,
+                    totalTokens: 1200,
+                    cachedTokens: order * 100,
+                },
+            }),
+        });
+        const sum = result.calls.reduce((n, c) => n + (c.cachedTokens ?? 0), 0);
+        assert.equal(typeof result.totals.cachedTokens, "number", "totals.cachedTokens is not a number");
+        assert.equal(
+            result.totals.cachedTokens,
+            sum,
+            `totals.cachedTokens ${result.totals.cachedTokens} against ${sum} in the log`,
+        );
+        assert.ok(sum > 0, "the fixture reported no cached tokens at all, so the sum proves nothing");
+    });
+
+    test("S19 · cached prompt tokens are never counted as extra prompt tokens", async () => {
+        // A cached token is a prompt token that was served from cache, not an
+        // eighth token category. Reporting more cached than prompt tokens
+        // would mean the two are being added rather than nested.
+        const { result } = await run({
+            behaviour: () => ({
+                usage: { promptTokens: 1000, completionTokens: 200, totalTokens: 1200, cachedTokens: 800 },
+            }),
+        });
+        for (const entry of result.calls) {
+            assert.ok(
+                entry.cachedTokens <= entry.promptTokens,
+                `${entry.agent}: ${entry.cachedTokens} cached against ${entry.promptTokens} prompt tokens`,
+            );
+        }
+        assert.ok(result.totals.cachedTokens <= result.totals.promptTokens);
+    });
+
+    test("§5 pitfall 23 · the fallback price is a worst case, so cached tokens do not reduce the estimate", async () => {
+        // "Cached tokens make the fallback price list wrong in the safe
+        // direction ... the estimate is a worst case and must be labelled as
+        // one." Two runs, identical but for the cache, must not be billed
+        // differently by the fallback arithmetic.
+        const priced = model("vendor/priced", { promptPrice: 1e-6, completionPrice: 2e-6 });
+        const usage = { promptTokens: 1000, completionTokens: 500, totalTokens: 1500 };
+        const cold = await run({ singleModel: priced, behaviour: () => ({ usage: { ...usage, cachedTokens: 0 } }) });
+        const warm = await run({ singleModel: priced, behaviour: () => ({ usage: { ...usage, cachedTokens: 900 } }) });
+        assert.ok(
+            warm.result.totals.costUsd >= cold.result.totals.costUsd - 1e-12,
+            `a cached run was estimated cheaper (${warm.result.totals.costUsd}) than an uncached one ` +
+                `(${cold.result.totals.costUsd}); the fallback must charge every prompt token at full price`,
+        );
     });
 });
 

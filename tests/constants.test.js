@@ -1,17 +1,18 @@
 // tests/constants.test.js — the fixed numbers and vocabularies.
 //
-// Sources: docs/spec.md S1, S2, S8, S15, §3, §5 pitfall 8; docs/interfaces.md.
+// Sources: docs/spec.md S1, S2, S8, S15, S20, S23, §3, §5 pitfall 8;
+// docs/interfaces.md.
 
 import { test, describe } from "node:test";
 import assert from "node:assert/strict";
 
+import * as constants from "../src/constants.js";
 import {
     CHAT_ENDPOINT,
     MODELS_ENDPOINT,
     ACCOUNT_ENDPOINT,
-    DATABASE_NAME,
-    CASE_STORE,
-    DATABASE_VERSION,
+    CASES_ENDPOINT,
+    HISTORY_LIMIT,
     SPEAKER_COUNT,
     JUDGE_COUNT,
     CALLS_PER_RUN,
@@ -97,13 +98,33 @@ describe("constants · the fixed numbers", () => {
         );
     });
 
-    test("the database identifiers are usable", () => {
-        assert.equal(typeof DATABASE_NAME, "string");
-        assert.ok(DATABASE_NAME.length > 0);
-        assert.equal(typeof CASE_STORE, "string");
-        assert.ok(CASE_STORE.length > 0);
-        assert.ok(Number.isInteger(DATABASE_VERSION) && DATABASE_VERSION >= 1);
+    test("S20 · HISTORY_LIMIT is a usable page size for the stored record", () => {
+        // "A finished deliberation is stored server-side and can be read back
+        // by a different browser." The list has to be bounded, and bounded at
+        // a number that shows more than one past deliberation.
+        assert.equal(typeof HISTORY_LIMIT, "number");
+        assert.ok(Number.isInteger(HISTORY_LIMIT), `HISTORY_LIMIT is ${HISTORY_LIMIT}, not an integer`);
+        assert.ok(HISTORY_LIMIT > 1, `HISTORY_LIMIT is ${HISTORY_LIMIT}; a one-case history cannot be compared`);
+        assert.ok(
+            HISTORY_LIMIT <= 1000,
+            `HISTORY_LIMIT is ${HISTORY_LIMIT}; an unbounded history is not a bounded, length-capped request (§3)`,
+        );
     });
+});
+
+describe("constants · the record no longer lives in the browser", () => {
+    // docs/interfaces.md: "`DATABASE_NAME`, `DATABASE_VERSION` and
+    // `CASE_STORE` are **gone**. The record no longer lives in the browser, so
+    // there is no local database to name or version."
+    for (const name of ["DATABASE_NAME", "DATABASE_VERSION", "CASE_STORE"]) {
+        test(`§1 · ${name} is gone, because a cleared cache must not destroy the audit trail`, () => {
+            assert.equal(
+                constants[name],
+                undefined,
+                `${name} is still exported; the record is still named as a browser-local store`,
+            );
+        });
+    }
 });
 
 describe("constants · the two arrangements", () => {
@@ -130,6 +151,7 @@ describe("constants · the endpoints", () => {
         CHAT_ENDPOINT,
         MODELS_ENDPOINT,
         ACCOUNT_ENDPOINT,
+        CASES_ENDPOINT,
     };
 
     for (const [name, value] of Object.entries(endpoints)) {
@@ -149,6 +171,38 @@ describe("constants · the endpoints", () => {
             assert.ok(!/sk-or-|sk-ant-/.test(value), `${name} contains a key pattern`);
         });
     }
+
+    test("§3 · the four routes are four different routes", () => {
+        const values = Object.values(endpoints);
+        assert.equal(
+            new Set(values).size,
+            values.length,
+            `two endpoints share a path: ${values.join(", ")}`,
+        );
+    });
+
+    test("S23 · CASES_ENDPOINT addresses the function, never the database", () => {
+        // "No database credential ever reaches the browser. The browser talks
+        // only to /api/cases; SUPABASE_* is read only inside functions."
+        assert.equal(typeof CASES_ENDPOINT, "string");
+        assert.ok(CASES_ENDPOINT.length > 0);
+        assert.ok(
+            !/supabase|postgres|postgresql|:\/\/|service[_-]?role|anon[_-]?key/i.test(CASES_ENDPOINT),
+            `CASES_ENDPOINT is "${CASES_ENDPOINT}"; the browser must address /api/cases and nothing else`,
+        );
+    });
+
+    test("S23 · no exported constant carries a database credential", () => {
+        const dumped = JSON.stringify(
+            Object.fromEntries(
+                Object.entries(constants).filter(([, v]) => typeof v !== "function"),
+            ),
+        );
+        const credential =
+            /(SUPABASE_[A-Z_]+|service_role|eyJhbGciOi|supabase\.co|postgres(ql)?:\/\/|sk-or-|sk-ant-)/;
+        const hit = dumped.match(credential);
+        assert.equal(hit, null, `src/constants.js carries a credential-shaped value: "${hit?.[0]}"`);
+    });
 });
 
 describe("constants · the verdict vocabularies", () => {

@@ -338,8 +338,6 @@ export default async function handler(request) {
              * asserting that it should have.
              */
             cachedTokens: readCachedTokens(usage),
-            cacheDiscount:
-                typeof usage.cache_discount === "number" ? usage.cache_discount : null,
             // OpenRouter returns the real charge here when it can work it out.
             // The browser falls back to the price list when it is missing.
             reportedCost: typeof usage.cost === "number" ? usage.cost : null

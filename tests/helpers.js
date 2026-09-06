@@ -127,7 +127,23 @@ export function perAgentModels(over = {}) {
 
 // ---------------------------------------------------------------- fake call
 
-const DEFAULT_USAGE = { promptTokens: 400, completionTokens: 200, totalTokens: 600 };
+const DEFAULT_USAGE = {
+    promptTokens: 400,
+    completionTokens: 200,
+    totalTokens: 600,
+    cachedTokens: 0,
+};
+
+/**
+ * The whole prompt one agent receives, in the order docs/interfaces.md sends
+ * it: "`shared` is sent first ... `persona` is sent second; `user` last."
+ * Used where a test asks what an agent was shown, without caring which
+ * segment carried it.
+ */
+export function wholePrompt(segments) {
+    if (!segments) return "";
+    return [segments.shared, segments.persona, segments.user].filter(Boolean).join("\n");
+}
 
 /**
  * Builds the injected `call` that docs/interfaces.md provides for tests.
@@ -135,26 +151,32 @@ const DEFAULT_USAGE = { promptTokens: 400, completionTokens: 200, totalTokens: 6
  * `behaviour({ stage, agentId, options, order })` may return:
  *   { text, ok, error, finishReason, usage, delayMs, result }
  *
- * Calls are attributed to a seat by matching the system prompt against the
- * personas module's own output — which also proves the boundary in spec §3
+ * Calls are attributed to a seat by matching the **persona segment** against
+ * the personas module's own output — which also proves the boundary in spec §3
  * ("the orchestrator ... does not build prompts or define personalities").
+ *
+ * The transport contract changed with spec version 3: `call` receives
+ * `{ model, segments: { shared, persona, user }, maxTokens, temperature }` and
+ * there is no composed `system` string any more, "because composing it is what
+ * destroyed the shared prefix" (docs/interfaces.md).
  */
 export function makeFakeCall(behaviour = () => ({}), chargeSheet = JUSTIFICATION_CASE) {
-    const bySystem = new Map();
+    const byPersona = new Map();
     for (const s of SPEAKERS) {
-        bySystem.set(speakerSystemPrompt(s, chargeSheet), { agentId: s.id, stage: "speech" });
+        byPersona.set(speakerSystemPrompt(s, chargeSheet), { agentId: s.id, stage: "speech" });
     }
     for (const j of JUDGES) {
-        bySystem.set(judgeSystemPrompt(j, chargeSheet), { agentId: j.id, stage: "verdict" });
+        byPersona.set(judgeSystemPrompt(j, chargeSheet), { agentId: j.id, stage: "verdict" });
     }
 
     const records = [];
 
     const call = async (options) => {
-        const known = bySystem.get(options?.system);
+        const persona = options?.segments?.persona;
+        const known = byPersona.get(persona);
         const stage = known
             ? known.stage
-            : /VERDICT/.test(String(options?.system ?? ""))
+            : /VERDICT/.test(String(persona ?? ""))
               ? "verdict"
               : "speech";
         const record = {

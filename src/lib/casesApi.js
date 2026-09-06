@@ -16,7 +16,7 @@
  * network anywhere near it.
  */
 
-import { CASES_ENDPOINT } from "../constants.js";
+import { CASES_ENDPOINT, HISTORY_LIMIT } from "../constants.js";
 
 /*
  * One deliberation as one row.
@@ -37,7 +37,10 @@ export function toCaseRow(run) {
         totals: run.totals || null,
         tally: run.tally || null,
         budget_usd: typeof run.budgetUsd === "number" ? run.budgetUsd : null,
-        ok: run.ok !== false
+        ok: run.ok !== false,
+        agent_models: run.agentModels || null,
+        distinct_models:
+            typeof run.distinctModels === "number" ? run.distinctModels : null
     };
 }
 
@@ -63,6 +66,7 @@ export function toCallRows(run) {
             ok: call.ok === true,
             error: call.error || null,
             verdict: call.verdict || null,
+            truncated: call.truncated === true,
             prompt_tokens: call.promptTokens || 0,
             completion_tokens: call.completionTokens || 0,
             total_tokens: call.totalTokens || 0,
@@ -86,6 +90,8 @@ function fromCaseRow(row, calls) {
         tally: row.tally || null,
         budgetUsd: row.budget_usd,
         ok: row.ok !== false,
+        agentModels: row.agent_models || {},
+        distinctModels: row.distinct_models || null,
         calls: (calls || []).map(function (call) {
             return {
                 id: call.call_id,
@@ -98,6 +104,7 @@ function fromCaseRow(row, calls) {
                 ok: call.ok === true,
                 error: call.error,
                 verdict: call.verdict,
+                truncated: call.truncated === true,
                 promptTokens: call.prompt_tokens || 0,
                 completionTokens: call.completion_tokens || 0,
                 totalTokens: call.total_tokens || 0,
@@ -161,6 +168,18 @@ export function createCasesClient(options) {
 
     return {
         async addCase(run) {
+            /*
+             * No method throws, on any argument, including none.
+             *
+             * Every caller passes a run, which is why this guard was missing
+             * and why the suite written from the specification found it: the
+             * discipline exists so a failed save is always reportable, and a
+             * method that throws on the way to reporting a failure has
+             * defeated its own reason for existing.
+             */
+            if (!run || typeof run !== "object" || !run.runId) {
+                return { ok: false, error: "There is no finished run to store." };
+            }
             const result = await request("", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
@@ -173,7 +192,7 @@ export function createCasesClient(options) {
         },
 
         async listCases() {
-            const result = await request("");
+            const result = await request("?limit=" + HISTORY_LIMIT);
             if (!result.ok) {
                 return { ok: false, error: result.error };
             }
@@ -181,6 +200,9 @@ export function createCasesClient(options) {
         },
 
         async getCase(runId) {
+            if (!runId) {
+                return { ok: false, error: "No case was named." };
+            }
             const result = await request("/" + encodeURIComponent(runId));
             if (!result.ok) {
                 return { ok: false, error: result.error };
@@ -192,6 +214,9 @@ export function createCasesClient(options) {
         },
 
         async deleteCase(runId) {
+            if (!runId) {
+                return { ok: false, error: "No case was named." };
+            }
             const result = await request("/" + encodeURIComponent(runId), { method: "DELETE" });
             if (!result.ok) {
                 return { ok: false, error: result.error };

@@ -22,7 +22,16 @@ create table if not exists public.cases (
     totals       jsonb,
     tally        jsonb,
     budget_usd   numeric,
-    ok           boolean     not null default true
+    ok           boolean     not null default true,
+
+    -- Which model sat in which seat, and how many genuinely different ones the
+    -- run reached. Stored rather than derived because the comparison between
+    -- the two arrangements is read back from here, and its whole subject is
+    -- this number: a stored run of arrangement B that cannot say how many
+    -- models it touched reports one model in seven seats, which is not a
+    -- missing figure but a wrong one.
+    agent_models   jsonb,
+    distinct_models integer
 );
 
 -- Cases are almost always read newest first.
@@ -51,6 +60,13 @@ create table if not exists public.model_calls (
     ok                boolean not null,
     error             text,
     verdict           text,
+
+    -- An answer that filled its allowance stopped mid-thought. Pitfall 3 makes
+    -- that a different outcome from a short answer everywhere else in this
+    -- project, and a log that cannot tell them apart cannot answer why a model
+    -- was dropped.
+    truncated         boolean not null default false,
+
     prompt_tokens     integer not null default 0,
     completion_tokens integer not null default 0,
     total_tokens      integer not null default 0,
@@ -60,6 +76,11 @@ create table if not exists public.model_calls (
     cached_tokens     integer not null default 0,
 
     cost_usd          numeric not null default 0,
+
+    -- The time the model itself spent, measured inside the function. The
+    -- browser's own round trip is deliberately not stored: it includes that
+    -- browser's network, so it is a property of one reading rather than of the
+    -- call.
     elapsed_ms        integer not null default 0,
 
     constraint model_calls_run_call_unique unique (run_id, call_id)

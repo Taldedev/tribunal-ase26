@@ -59,7 +59,7 @@ Countable. Each has one true/false answer.
 | S13 | A charge sheet's closing markers cannot escape their block | `neutralizeMarkers` replaces them |
 | S14 | An answer cut off at the token limit is a failure | `finishReason === "length"` short-circuits parsing |
 | S15 | Arrangement B assigns a model per seat, seven independently | `resolveAgentModels` reads `perAgent[agent.id]` |
-| **S16** | **No judge is permitted to impose a sentence** | Every judge prompt forbids it; the dossier's scope note requires it |
+| **S16** | **No judge is permitted to impose a sentence** | `judgeSystemPrompt` forbids it, in the persona segment and not only in the shared preamble — the preamble also reaches four representatives who were never going to sentence anyone |
 
 S2, S3 and S14 are the same requirement seen three ways: **the court either
 answers in the required form or it reports that it could not.**
@@ -91,13 +91,23 @@ everywhere and nothing at all enforced the second.
 | # | Criterion | How it is checked |
 |---|---|---|
 | **S17** | Within one wave, the shared segment is byte-identical for every agent in it | `buildSpeakerMessages` and `buildJudgeMessages` return the same `shared` for every agent given the same inputs |
-| **S18** | The shared segment is sent before any agent-specific text | The message array is `[shared, persona, user]` in that order |
+| **S18** | The shared segment is sent before any agent-specific text | `Segments` declares its keys in the order `shared`, `persona`, `user`, and that is the order `client.js` sends them in |
 | **S19** | Every call records how many prompt tokens were served from cache | `cachedTokens` is a number on every log entry, zero when none |
 
 S17 and S18 are one requirement split so each can fail on its own. A prefix is
 only cacheable if it is identical **and** first; the previous design satisfied
 neither, because each agent's own persona came first and the shared charge
 sheet came after it.
+
+**S18 is the weakest criterion here and it is worth saying why.** What has to
+be true is a property of the message array, and that array is built in
+`client.js`, which performs `fetch` and is not unit-testable in this process.
+So the suite checks the declared key order of `Segments` — which is a real
+check, since it fails if a builder is rewritten to put the persona first — and
+the send order itself is verified by reading `client.js` and by a live run
+reporting a non-zero cached-token count. A criterion whose mechanical check is
+one step removed from the thing it wants should say so rather than look as firm
+as the rest.
 
 ### The gate
 
@@ -299,3 +309,32 @@ we hit them.
 26. **`git config core.hooksPath` is local configuration and does not clone.**
     A hook committed to the repository is not a hook installed in a checkout.
     `npm install` has to do it, and CI has to not depend on it.
+
+### Found by the suite described in part 4, on its first run against version 3
+
+Four of these were defects and four were faults in the documents. Recorded
+separately from the ones above because the method that found them is the
+argument for the method.
+
+27. **A field declared on a data shape and stored nowhere is a lie about the
+    record.** `CaseSummary` reported `distinctModels`, read back from storage,
+    and `CaseRow` had no column to store it in - so every stored case reported
+    that one model had sat in all seven seats. The comparison panel, whose
+    entire subject is how many distinct models a run reached, would have said
+    "1 of 7 seats" for every past run of arrangement B. Nothing failed; the
+    figure was simply wrong, and it was wrong in the direction that makes
+    arrangement B look pointless. The per-seat model map is now stored.
+28. **"No method throws" carries no qualification.** `addCase(undefined)` threw,
+    because a guard against a missing run had never been written - every caller
+    passes one. The discipline exists so that a failed save is always
+    reportable, and a method that throws on the way to reporting a failure has
+    defeated it.
+29. **A truncated speech was recorded as an ordinary one.** The call log carried
+    a truncation flag in the browser and dropped it at the database boundary, so
+    the stored log could not distinguish a speech that ended from a speech that
+    ran out of tokens. Pitfall 3 makes that distinction a first-class failure
+    everywhere else.
+30. **An unused declaration is worse than a missing one.** `Usage.cacheDiscount`
+    was read from the provider, declared in the interfaces, and consumed by
+    nothing. It is removed. `cachedTokens` is the evidence that caching worked;
+    a second figure that nothing reads only invites a later reader to trust it.

@@ -21,7 +21,8 @@ yet.
 ```
 CHAT_ENDPOINT, MODELS_ENDPOINT, ACCOUNT_ENDPOINT   string
 CASES_ENDPOINT                                     string    // new
-HISTORY_LIMIT                                      number    // new
+HISTORY_LIMIT                                      number    // new; how many past
+                                                             // cases listCases asks for
 SPEAKER_COUNT, JUDGE_COUNT, CALLS_PER_RUN          number
 CONFIG_SINGLE, CONFIG_SPLIT                        string
 CONFIG_LABELS                                      { SINGLE: string, SPLIT: string }
@@ -64,7 +65,6 @@ Usage = {
     completionTokens: number
     totalTokens:      number
     cachedTokens:     number     // new; prompt tokens served from cache, 0 when none
-    cacheDiscount?:   number|null // new; dollars the provider says caching saved
     reportedCost?:    number     // dollars, from upstream, when available
 }
 
@@ -84,6 +84,16 @@ CallResult =                     // what a model call resolves to; it never thro
 first, as its own system message, so a provider can match it as a prefix across
 the calls in a wave; `persona` is sent second; `user` last. Nothing may be
 prepended to `shared`.
+
+**The key order is part of the contract**, because it is the only part of S18
+a unit test can reach: the array itself is built in `client.js`, which performs
+`fetch`. A builder rewritten to return `{ persona, shared, user }` fails the
+suite even if the array downstream is still correct, which is the intended
+sensitivity — the builders are where this gets broken.
+
+There is no composed `system` string. Composing the two system messages into
+one is exactly the operation that destroys the prefix, so the composed form is
+not offered as a convenience.
 
 ## `src/tribunal/cases.js`
 
@@ -205,18 +215,21 @@ toCaseRow(run)   -> CaseRow     // pure; the deliberation as one database row
 toCallRows(run)  -> CallRow[]   // pure; one row per model call, failures included
 
     CaseRow = { run_id, created_at, config, charge_sheet, speeches, rulings,
-                totals, tally, budget_usd, ok }
+                totals, tally, budget_usd, ok,
+                agent_models, distinct_models }
     CallRow = { run_id, call_id, stage, agent, agent_title, role,
-                model_id, model_name, ok, error, verdict,
+                model_id, model_name, ok, error, verdict, truncated,
                 prompt_tokens, completion_tokens, total_tokens, cached_tokens,
                 cost_usd, elapsed_ms }
 
 createCasesClient(options?) -> CasesClient
     options: { fetchImpl?: typeof fetch, endpoint?: string }
 
-CasesClient = {                             // no method throws
+CasesClient = {   // no method throws, on any argument, including none
     await addCase(run)       -> { ok: true, runId: string } | { ok: false, error: string }
     await listCases()        -> { ok: true, cases: CaseSummary[] } | { ok: false, error: string }
+                                // asks for HISTORY_LIMIT rows; the function
+                                // clamps whatever it is sent
     await getCase(runId)     -> { ok: true, case: StoredCase } | { ok: false, error: string }
     await deleteCase(runId)  -> { ok: true } | { ok: false, error: string }
 }
@@ -231,6 +244,43 @@ CasesClient = {                             // no method throws
 actually testable. `createCasesClient` takes an injected `fetchImpl` for the
 same reason `runCase` takes an injected `call`: the network is not the unit
 under test.
+
+`agent_models` and `distinct_models` are on the case row because the comparison
+between the two arrangements is read back from storage, and its whole subject is
+how many genuinely different models a run reached. Without them a stored run of
+arrangement B reports one model in seven seats, which is not a missing figure
+but a wrong one.
+
+`truncated` is on the call row because pitfall 3 makes a truncated answer a
+different outcome from a short one everywhere else, and a log that cannot tell
+them apart cannot answer why a model was dropped. `roundTripMs` is deliberately
+**not** stored: it is measured in the browser and includes that browser's own
+network, so it is a property of one reading rather than of the call.
+
+### What `/api/cases` replies with
+
+Documented because `createCasesClient` is specified to be tested through an
+injected `fetchImpl`, and a fake response cannot be written against a wire
+format nobody wrote down.
+
+```
+GET    /api/cases             -> 200 { cases: CaseSummary[] }
+GET    /api/cases?limit=N     -> 200 { cases: CaseSummary[] }   // N clamped server-side
+GET    /api/cases/:runId      -> 200 { case: CaseRow, calls: CallRow[] }
+                              -> 404 { error }
+POST   /api/cases             -> 201 { runId, calls: number }
+       body: { case: CaseRow, calls: CallRow[] }
+DELETE /api/cases/:runId      -> 200 { runId, deleted: true }
+
+any    -> 400 { error }   the request was malformed
+       -> 405 { error }   wrong method
+       -> 502 { error }   the database refused or was unreachable
+       -> 503 { error }   the record is not configured on this deployment
+```
+
+Every failure carries `error` and the client turns it into `{ ok: false, error }`.
+A 503 is the ordinary state of a checkout with no Supabase project behind it:
+deliberations still run, and the screen says they are not being kept.
 
 ## `src/lib/money.js`
 
