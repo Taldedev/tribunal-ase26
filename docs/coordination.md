@@ -110,3 +110,46 @@ rather than a step someone remembers to do. And, in arrangement B, judges whose
 disagreement comes from genuinely different models rather than three samples of
 one model's blind spot — which is the entire reason the project compares two
 arrangements instead of shipping one.
+
+## What the comparison actually returned
+
+The claim above is the project's thesis and it deserves to be reported against
+rather than restated. Three deliberations on case T-001:
+
+| arrangement | judges' models | the bench |
+|---|---|---|
+| A | one, all three seats | unanimous, NOT JUSTIFIED |
+| A, again | one, all three seats | unanimous, NOT JUSTIFIED |
+| B | three, two of them different providers | the two that ruled: **both** NOT JUSTIFIED; the third timed out |
+
+**The bench did not divide, on either arrangement.** Two judges on genuinely
+different models — MiniMax and NVIDIA — reached the same answer, and read
+together their reasons were nearly the same reason: the agreed factual record
+is silent on whether any safer course was attempted, and the burden of showing
+necessity rests on the one who kills.
+
+Three readings of that, and the honest position is that this project cannot
+yet distinguish between them.
+
+1. **The case is not close.** T-001's agreed record contains five facts and the
+   fifth — unarmed, not attacking, no council, no attempted detention, no
+   public surrender sought — is close to dispositive on the question as the
+   dossier words it. A question with a clear answer produces agreement whatever
+   is on the bench, and agreement then says nothing about the models.
+2. **Two is not three, and three is not a sample.** One judge timed out, so
+   arrangement B was never observed at full strength, and one case is one case.
+3. **The prediction may simply be weaker than stated.** Different models may
+   agree more often on reasoning tasks with a well-specified record than the
+   module implies.
+
+What can be said without hedging: **the arrangement worked and the claim did
+not reproduce here.** The seats were genuinely distinct, the run reported `3 of
+7` rather than calling itself B, no judge saw another's ruling, and the answers
+matched anyway. Reporting that is worth more than a project that only ever ran
+the arrangement predicted to agree — and it is why the comparison is built as
+an experiment rather than as a feature that ships one way.
+
+**What would settle it** is seven distinct models and a harder case, and seven
+distinct models need paid ones: three of the nineteen free models answered on
+the day this was measured. That is a constraint of the free tier, recorded in
+[`merge-readiness.md`](merge-readiness.md), and not a gap in the arrangement.
