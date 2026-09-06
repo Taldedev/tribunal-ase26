@@ -18,6 +18,13 @@ npm run build
 npm run verify    # the bundle and the whole git history
 ```
 
+And once a Supabase project exists, the one that proves the fourth layer is
+really there rather than merely configured:
+
+```
+npm run check:record
+```
+
 ---
 
 ## The build assignment (Lesson 4)
@@ -150,9 +157,10 @@ label.
 Stated here rather than left for someone to notice.
 
 - **`client.js` and the four functions have no unit tests.** They perform
-  `fetch`. `casesApi.js` is tested through an injected transport, and the
-  functions themselves are verified live. [`spec.md`](spec.md) part 4 lists this
-  as owed.
+  `fetch`. `casesApi.js` is tested through an injected transport;
+  `netlify/functions/cases.js` is exercised end to end by
+  `npm run check:record`, and `openrouter.js` only by a live run.
+  [`spec.md`](spec.md) part 4 lists this as owed.
 - **Nothing in `src/components/` is tested.** That needs a DOM, and adding one
   means a new dependency and a new toolchain.
 - **CI reports; it does not yet refuse.** Requiring the check is a branch

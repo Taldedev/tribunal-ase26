@@ -11,7 +11,8 @@
     "test": "node --test \"tests/*.test.js\"",
     "verify": "./scripts/verify-repo.sh",
     "preview": "vite preview",
-    "prepare": "git config core.hooksPath scripts || true"
+    "prepare": "git config core.hooksPath scripts || true",
+    "check:record": "./scripts/check-record.sh"
   },
   "dependencies": {
     "@emotion/react": "11.14.0",

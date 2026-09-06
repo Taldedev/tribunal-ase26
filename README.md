@@ -70,6 +70,19 @@ tokens.
 run [`supabase/schema.sql`](supabase/schema.sql) in its SQL editor, and take
 `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` from Project Settings → API.
 
+Then prove it rather than assume it:
+
+```bash
+npm run check:record
+```
+
+It writes a probe deliberation with one logged call, reads both back, checks
+that an **unauthenticated** request gets nothing — which is the only way to
+find out whether row-level security is actually on — and deletes the probe
+again. It reads `.env` and prints neither value. A variable being set is not
+the same as a record being connected, and the difference is usually discovered
+through a deployment that looks fine.
+
 Without the Supabase pair the app still runs and still deliberates. It simply
 keeps nothing, and says so on screen rather than pretending otherwise.
 

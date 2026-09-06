@@ -152,8 +152,8 @@ setting that this work could not supply.
 
 | What | Why it is unchecked | Who checks it |
 |---|---|---|
-| **A row has ever been written** | No Supabase project exists. `schema.sql` has never been run, so the tables are untested against a real Postgres and S20, S21 and S22 are verified in code only | whoever provisions the project: create it, run `supabase/schema.sql`, set `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` |
-| **A case read back in a second browser** | Same reason. This is the whole point of S20 | the same person, after the above |
+| **A row has ever been written** | No Supabase project exists. `schema.sql` has never been run, so the tables are untested against a real Postgres and S20, S21 and S22 are verified in code only | whoever provisions the project: create it, run `supabase/schema.sql`, set the two variables, then **`npm run check:record`** — it writes a probe case and its call row, reads both back, checks that an unauthenticated request is refused, and deletes the probe |
+| **A case read back in a second browser** | Same reason. `check:record` proves the round trip; this proves the point of it | the same person, after the above |
 | **A non-zero `cachedTokens` on a real call** | Needs a live model call. The plumbing is tested; whether any chosen provider actually serves the prefix from cache is a fact about that provider, not about this code | run the same charge sheet twice and read The bill |
 | **The cache breakpoint being refused, and the retry** | Pitfall 22 is a prediction. No provider has yet rejected it here | first live run against a provider that does |
 | **CI passing** | The repository has not been pushed | GitHub, on the first push |

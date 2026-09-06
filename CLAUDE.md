@@ -65,6 +65,7 @@ npm run dev       # netlify dev — the only way the /api functions work
 npm run build     # vite build; run before every commit
 npm test          # the specification suite; the pre-commit hook runs this
 npm run verify    # bundle and full-history credential scan (slow; CI, releases)
+npm run check:record  # a real round trip against Supabase; needs .env
 npm run preview
 ```
 
