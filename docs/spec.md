@@ -338,3 +338,28 @@ argument for the method.
     was read from the provider, declared in the interfaces, and consumed by
     nothing. It is removed. `cachedTokens` is the evidence that caching worked;
     a second figure that nothing reads only invites a later reader to trust it.
+
+### Found while writing the instructions for verifying the caching
+
+31. **Two of Module 9's own levers pull against each other, and this project
+    uses both.** A prefix is cached when a request is *processed*; the calls
+    within a wave are dispatched together by `Promise.all` and are therefore
+    all in flight before any of them has finished. So the second and third
+    judge do not read a prefix the first judge warmed - none of the three has
+    landed yet when the others start. Parallelism is what makes a deliberation
+    take 40 seconds instead of 97; it is also what stops the shared prefix
+    paying off *inside* one deliberation.
+
+    Where the saving does land is **across** runs: the second deliberation on
+    the same charge sheet presents a prefix the provider has already seen, for
+    as long as its cache holds it, which is typically minutes. So the honest
+    expectation is `cachedTokens: 0` on a first run of a fresh sheet and a
+    non-zero figure on an immediate second run - and a first run reporting zero
+    is the design working, not the lever failing.
+
+    **This is not a reason to serialise the waves.** Wall-clock time is the
+    thing the user waits for, the tokens are counted either way, and on free
+    models the currency that binds is requests per day rather than tokens at
+    all. It is a reason for the run report to say which of the two it bought,
+    which it now can, and a reason not to claim a saving the arrangement
+    structurally cannot make on a single run.

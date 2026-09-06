@@ -86,11 +86,19 @@ the agent count for exactly that reason.
 
 **Parallelism saves time and saves no tokens at all.** The prompt structure is
 what saves tokens, and it saves them in the same place the cost is: the three
-judges read the identical record, so that record is sent as a shared prefix
-and a provider that caches prefixes charges for it once rather than three
-times. The four representatives share a smaller one. `cachedTokens` on each
-call is the evidence, and a run that reports zero of it saved nothing whatever
-this paragraph claims.
+judges read the identical record, so that record is sent as a shared prefix a
+provider can charge for once rather than three times. The four representatives
+share a smaller one.
+
+**And the two pull against each other, which is worth saying plainly.** A
+prefix is cached when a request is processed, and the three judges are
+dispatched together - none has landed when the others start, so none of them
+warms the prefix for its siblings. The saving lands across runs instead: a
+second deliberation on the same charge sheet meets a prefix the provider has
+already seen. So a first run of a fresh sheet reporting `cachedTokens: 0` is
+this arrangement working as designed, and serialising the waves to change that
+would trade the 40 seconds a user waits for a token count that on free models
+is not even the currency that binds. Pitfall 31 in [`spec.md`](spec.md).
 
 On free models the dollar cost is zero and the real currency is **requests per
 day** — seven per run against an allowance of about 50, so roughly seven runs
