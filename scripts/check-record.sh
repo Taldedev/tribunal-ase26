@@ -13,8 +13,9 @@
 #
 #     ./scripts/check-record.sh
 #
-# It reads SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY from .env and never
-# prints either of them. Nothing it writes survives the run.
+# It reads SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY from .env, and
+# SUPABASE_ANON_KEY too when it is there, and prints none of them. Nothing it
+# writes survives the run.
 
 set -e
 cd "$(dirname -- "$0")/.."
@@ -148,16 +149,53 @@ if [ "$status" = "200" ] && grep -q "probe-seat" /tmp/record-check-body; then pa
     fail "Status $status, and the probe call was not in the answer."
 fi
 
-# --- 4. row-level security is doing its job ------------------------------
-# The service-role key bypasses row-level security by design. A request with no
-# key at all must therefore get nothing - if this one succeeds, the tables are
-# readable by the whole internet and RLS was never enabled.
-step "an unauthenticated request gets nothing"
+# --- 4. what a request without the service key can reach -----------------
+#
+# Two checks, and the first one is weaker than it looks.
+#
+# A request carrying no key at all is refused by Supabase's API gateway before
+# row-level security is ever consulted. So it passing tells you the endpoint is
+# not open to the anonymous internet - which is worth knowing - and tells you
+# nothing whatever about RLS. This check used to claim otherwise, in its own
+# comment and in its failure message, which is the trap Module 16 names: where
+# the prose and the code disagree, the code is true.
+step "a request with no key is refused"
 status=$(curl -s -o /tmp/record-check-body -w '%{http_code}' "$REST/cases?select=run_id&limit=1")
 if [ "$status" = "401" ] || [ "$status" = "403" ]; then pass; else
-    fail "Status $status - an anonymous request was NOT refused. Row-level
-       security is not enabled on these tables. Re-run the two ALTER TABLE
-       lines at the bottom of supabase/schema.sql."
+    fail "Status $status - a request with no key at all was answered. That is
+       the API gateway, not row-level security, and it should never happen."
+fi
+
+# The real test needs a key that RLS actually applies to. The anonymous or
+# publishable key is public by design - it ships inside any browser app that
+# uses one - so it is safe in .env and is the only way to prove from outside
+# that the two ALTER TABLE lines at the bottom of schema.sql really ran.
+#
+# Without it, RLS is unproven and this says so rather than passing quietly.
+ANON=$(grep -E '^SUPABASE_ANON_KEY=' .env 2>/dev/null | head -1 | cut -d= -f2- | tr -d '"'"'"' \r')
+case "$ANON" in *replace-me*|"") ANON="" ;; esac
+
+if [ -n "$ANON" ]; then
+    step "the anon key reads nothing (RLS)"
+    status=$(curl -s -o /tmp/record-check-body -w '%{http_code}' \
+        "$REST/cases?select=run_id&limit=1" \
+        -H "apikey: $ANON" -H "Authorization: Bearer $ANON")
+    if [ "$status" = "401" ] || [ "$status" = "403" ]; then
+        pass
+    elif [ "$status" = "200" ] && [ "$(tr -d ' \n' < /tmp/record-check-body)" = "[]" ]; then
+        # 200 with an empty array is RLS working exactly as intended: the
+        # request was allowed and no row was visible to it.
+        pass
+    else
+        fail "Status $status, and the answer was not empty - the anon key can
+       read these tables. Row-level security is not enabled. Run the two
+       ALTER TABLE lines at the bottom of supabase/schema.sql."
+    fi
+else
+    printf '  %-46s%s\n' "the anon key reads nothing (RLS)" "SKIPPED"
+    echo "       No SUPABASE_ANON_KEY in .env, so row-level security is"
+    echo "       UNPROVEN. The anon key is public by design; add it to .env"
+    echo "       from Project Settings -> API Keys to check this."
 fi
 
 # --- 5. clean up ---------------------------------------------------------
