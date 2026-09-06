@@ -193,6 +193,8 @@ merged `main`.
 | **A case written by one browser reads back in another (S20, fully)** | `GET /api/cases` on the deployed site returns all three deliberations written from a local browser on a different machine: the arrangement, the label `T-001 · Jon Snow`, the three verdicts, and the cached-token figure for each. A different client, a different machine, the same record |
 | **S9 against the artefact people actually download** | The credential patterns in `security-patterns.yaml`, run over the JavaScript the live site serves: no match. No `supabase.co` host in it either. Previously this criterion was only ever checked against a local `dist/` |
 | **The gate on `main` itself** | `gate  success  d2d7226c` — the suite, the build and the full-history credential scan, run on the merge commit rather than only on the branch |
+| **The repository is openable by a stranger** | `visibility: PUBLIC`. Fetched without any credential: the repository page, `README.md` and `docs/requirements.md` all answer 200. Checked unauthenticated on purpose, because an authenticated check proves only that the owner can read it |
+| **The gate refuses, rather than reports (S25, fully)** | Branch protection on `main`: required check `gate`, `strict: true`, `enforce_admins: true`, force pushes and deletions off. Proven by trying: a direct push was answered `remote rejected — Required status check "gate" is expected · protected branch hook declined`. Module 13 asks for a merge the tools decline mechanically, and this is the decline |
 
 ### Still unchecked
 
@@ -201,10 +203,8 @@ merged `main`.
 | **Arrangement B, and the comparison** | Both runs were arrangement A. B needs seven models that all answer, and 2 of 4 free models answered when pinged — so this is a real cost in requests, not a formality | pick seven, use Test these models, then Compare |
 | **A non-zero `cachedTokens` on a real call** | Needs a live model call. The plumbing is tested; whether any chosen provider actually serves the prefix from cache is a fact about that provider, not about this code | run the same charge sheet twice and read The bill |
 | **The cache breakpoint being refused, and the retry** | Pitfall 22 is a prediction. No provider has yet rejected it here | first live run against a provider that does |
-| **CI passing** | The repository has not been pushed | GitHub, on the first push |
 | **The deployed site serving this work at all** | Visitor access is now Public and the site answers 200 — but it is serving **`main`, the import commit**, so none of the work is live. Proven three ways: the bundle contains `IndexedDB` and `tribunaldb` and not `/api/cases`, `From cache` or `was not recorded`; `/api/cases` returns the SPA's own HTML through the catch-all redirect rather than JSON, because that function does not exist on `main`; and `/api/openrouter` answers *"Both a system prompt and a user prompt are required"* to the segment contract, which is the pre-caching signature | merge the pull request and redeploy, or Netlify → Build & deploy → **Branches → production branch → `spec/v3`** |
 | **`OPENROUTER_API_KEY` on Netlify** | Set to something empty or blank rather than unset. `/api/account` and `/api/openrouter` both answer *"Missing Authentication header"*, which is OpenRouter refusing a `Bearer` with nothing after it — an unset variable would have produced the function's own message instead. `/api/models` still works because that catalogue needs no key, which is exactly why it is not evidence that the key is right | Netlify → Site configuration → Environment variables → re-enter `OPENROUTER_API_KEY`, then **redeploy** — functions read the environment at build time |
-| **CI refusing a merge** | Branch protection is a setting in GitHub, not a file here. Until it is set, CI reports and does not block | Settings → Branches → protect `main` → require the `gate` check |
 
 ## The judging act
 
