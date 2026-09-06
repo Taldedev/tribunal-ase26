@@ -63,7 +63,7 @@ from, on a different Netlify account. Not this site.
 ## Commands
 
 ```
-npm install       # installs the pre-commit gate, and netlify-cli locally
+npm install       # also installs the pre-commit gate (prepare → core.hooksPath)
 npm run dev       # netlify dev — the only way the /api functions work
 npm run build     # vite build; run before every commit
 npm test          # the specification suite; the pre-commit hook runs this

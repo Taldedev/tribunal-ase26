@@ -102,9 +102,11 @@ cp .env.example .env        # then put your keys in .env
 npm run dev                 # http://localhost:8888
 ```
 
-`netlify-cli` is a pinned devDependency rather than something you install
-globally, so `npm install` is the whole setup and a fresh clone needs no step
-that can fail differently on someone else's machine.
+`npm run dev` fetches a pinned `netlify-cli` through `npx` rather than
+installing it into this project or asking you to install it globally, so there
+is no setup step that can fail differently on someone else's machine and no
+1,000-package dev tool in the lock file. The first run downloads it; after that
+it is cached.
 
 `npm install` sets `core.hooksPath` through a `prepare` script, so the
 credential scan and the test suite guard every commit in a fresh clone without
