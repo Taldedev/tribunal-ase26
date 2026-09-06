@@ -20,6 +20,8 @@
  * purpose proxy paid for by the site owner.
  */
 
+import { readModelKey } from "../shared/keys.js";
+
 const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
 
 // A single call may never ask for more than this many completion tokens.
@@ -90,18 +92,11 @@ export default async function handler(request) {
         return jsonResponse({ error: "Use POST." }, 405);
     }
 
-    const apiKey = process.env.OPENROUTER_API_KEY;
-    if (!apiKey) {
-        return jsonResponse(
-            {
-                error:
-                    "The server has no OPENROUTER_API_KEY. Locally, copy .env.example " +
-                    "to .env and put a key in it. On Netlify, set it under Site " +
-                    "configuration -> Environment variables."
-            },
-            500
-        );
+    const credential = readModelKey();
+    if (credential.error) {
+        return jsonResponse({ error: credential.error }, 500);
     }
+    const apiKey = credential.key;
 
     let payload;
     try {

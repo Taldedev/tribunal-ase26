@@ -14,8 +14,11 @@
  * craft.
  */
 
-const SUPABASE_URL = process.env.SUPABASE_URL;
-const SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
+import { readRecordKeys } from "../shared/keys.js";
+
+const RECORD = readRecordKeys();
+const SUPABASE_URL = RECORD.url;
+const SERVICE_KEY = RECORD.key;
 
 // The most cases a listing will return. The history panel reads newest first
 // and nobody scrolls a thousand deliberations; an unbounded list is a way to
@@ -43,20 +46,13 @@ function jsonResponse(body, status) {
 }
 
 function configured() {
-    return Boolean(SUPABASE_URL && SERVICE_KEY);
+    return !RECORD.error;
 }
 
+// 503 rather than 500: the record being absent is a state this deployment is
+// in, not a fault in the request that just arrived.
 function notConfigured() {
-    return jsonResponse(
-        {
-            error:
-                "The record is not configured. Set SUPABASE_URL and " +
-                "SUPABASE_SERVICE_ROLE_KEY - locally in .env, and on Netlify under " +
-                "Site configuration -> Environment variables. Deliberations still " +
-                "run; they are simply not kept."
-        },
-        503
-    );
+    return jsonResponse({ error: RECORD.error }, 503);
 }
 
 // One request to Supabase's REST interface. The key never leaves this function.

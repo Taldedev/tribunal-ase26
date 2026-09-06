@@ -97,11 +97,14 @@ commit that has ever existed.
 ## Running it locally
 
 ```bash
-npm install                 # also installs the pre-commit gate
+npm install                 # also installs the pre-commit gate and netlify dev
 cp .env.example .env        # then put your keys in .env
-npx netlify-cli login       # first time only
 npm run dev                 # http://localhost:8888
 ```
+
+`netlify-cli` is a pinned devDependency rather than something you install
+globally, so `npm install` is the whole setup and a fresh clone needs no step
+that can fail differently on someone else's machine.
 
 `npm install` sets `core.hooksPath` through a `prepare` script, so the
 credential scan and the test suite guard every commit in a fresh clone without
@@ -111,10 +114,17 @@ anyone reading this file. Check it with `git config --get core.hooksPath`.
 functions together. **`npm run dev:vite` alone will not work** — Vite has no way
 to serve `/api/openrouter`, so every call fails.
 
-Put the key in **`.env`**, not `.env.example`. `.env` is ignored by git;
+Put the keys in **`.env`**, not `.env.example`. `.env` is ignored by git;
 `.env.example` is committed as the template, and a key pasted into it will be
 published. The pre-commit hook refuses any commit carrying a credential, but
 the hook is the backstop, not the plan.
+
+**A placeholder is refused as firmly as a missing key.** Copying
+`.env.example` and forgetting to edit a line is the most likely way to get
+here, and it used to produce "OpenRouter refused the call: User not found" —
+which sends you to look at your OpenRouter account instead of at the line you
+never edited. Both functions now say which variable is still a placeholder and
+where it belongs.
 
 ---
 
