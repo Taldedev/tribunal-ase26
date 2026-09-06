@@ -48,6 +48,10 @@ const MAX_USER_CHARACTERS = 4000;
  */
 const UPSTREAM_TIMEOUT_MS = 24000;
 
+// What the deadline race resolves with. A unique symbol, so it can never be
+// mistaken for anything a provider might legitimately send back.
+const DEADLINE = Symbol("deadline");
+
 function jsonResponse(body, status) {
     return new Response(JSON.stringify(body), {
         status: status || 200,
@@ -184,16 +188,77 @@ export default async function handler(request) {
         return messages;
     }
 
+    /*
+     * One deadline for the whole handler, not one per attempt.
+     *
+     * The cache-breakpoint retry can send twice, and two 24s attempts is 48s
+     * against a platform that kills the function at 30. So the budget is
+     * computed once here and each attempt gets whatever is left of it.
+     */
+    const deadline = Date.now() + UPSTREAM_TIMEOUT_MS;
+
+    /*
+     * Races a promise against the handler's deadline.
+     *
+     * This exists because aborting the controller does not stop a body read
+     * that has already begun. Measured, with the function instrumented:
+     * headers arrived at 794ms, the abort fired exactly on schedule at
+     * 24,001ms, and `upstream.text()` then neither resolved nor rejected - it
+     * kept waiting until the platform killed the function at 30s and answered
+     * with its own error page, which is not JSON. That is pitfall 6's failure
+     * happening through the fix written to prevent it, because the fix guarded
+     * the half of the call that was never the problem.
+     *
+     * The signal is still sent, since it does release the socket where the
+     * runtime honours it. The race is what guarantees this handler answers.
+     */
+    function withDeadline(promise, ms) {
+        let timer;
+        const expired = new Promise(function (resolve) {
+            timer = setTimeout(function () {
+                resolve(DEADLINE);
+            }, Math.max(ms, 0));
+        });
+        return Promise.race([promise, expired]).finally(function () {
+            clearTimeout(timer);
+        });
+    }
+
+    function timedOut() {
+        return {
+            failed: jsonResponse(
+                {
+                    error:
+                        "The model did not answer within " +
+                        Math.round(UPSTREAM_TIMEOUT_MS / 1000) +
+                        " seconds and the call was cut off. Free models are often " +
+                        "queued behind other traffic; try again or pick another model."
+                },
+                504
+            )
+        };
+    }
+
     async function send(withBreakpoint) {
         const startedAt = Date.now();
+        const remaining = deadline - startedAt;
+        if (remaining <= 500) {
+            return timedOut();
+        }
+
         const controller = new AbortController();
         const timeoutId = setTimeout(function () {
             controller.abort();
-        }, UPSTREAM_TIMEOUT_MS);
+        }, remaining);
 
+        // Both halves of the call are bounded: the open, and the read. A
+        // reasoning model sends headers at once and then thinks, so the read
+        // is the half that actually runs long.
         let upstream;
+        let raw;
         try {
-            upstream = await fetch(OPENROUTER_URL, {
+            upstream = await withDeadline(
+                fetch(OPENROUTER_URL, {
                 signal: controller.signal,
                 method: "POST",
                 headers: {
@@ -209,22 +274,25 @@ export default async function handler(request) {
                     temperature: temperature,
                     usage: { include: true }
                 })
-            });
+                }),
+                deadline - Date.now()
+            );
+            if (upstream === DEADLINE) {
+                clearTimeout(timeoutId);
+                controller.abort();
+                return timedOut();
+            }
+
+            raw = await withDeadline(upstream.text(), deadline - Date.now());
+            if (raw === DEADLINE) {
+                clearTimeout(timeoutId);
+                controller.abort();
+                return timedOut();
+            }
         } catch (error) {
             clearTimeout(timeoutId);
             if (error.name === "AbortError") {
-                return {
-                    failed: jsonResponse(
-                        {
-                            error:
-                                "The model did not answer within " +
-                                Math.round(UPSTREAM_TIMEOUT_MS / 1000) +
-                                " seconds and the call was cut off. Free models are often " +
-                                "queued behind other traffic; try again or pick another model."
-                        },
-                        504
-                    )
-                };
+                return timedOut();
             }
             return {
                 failed: jsonResponse(
@@ -236,7 +304,6 @@ export default async function handler(request) {
 
         clearTimeout(timeoutId);
         const elapsedMs = Date.now() - startedAt;
-        const raw = await upstream.text();
 
         let body;
         try {
