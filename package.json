@@ -12,7 +12,8 @@
     "verify": "./scripts/verify-repo.sh",
     "preview": "vite preview",
     "prepare": "git config core.hooksPath scripts || true",
-    "check:record": "./scripts/check-record.sh"
+    "check:record": "./scripts/check-record.sh",
+    "models": "./scripts/check-models.sh"
   },
   "dependencies": {
     "@emotion/react": "11.14.0",

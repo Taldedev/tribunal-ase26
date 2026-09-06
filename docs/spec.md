@@ -256,6 +256,18 @@ we hit them.
 9. **Free models are rationed by requests per day, not by dollars.** The dollar
    cap will never fire on free models. Roughly 50 requests/day without credit,
    at 7 per run.
+
+   **And the allowance is not one bucket.** Measured: three NVIDIA models
+   refused with "Rate limit exceeded: free-models-per-day" in the same minute
+   that a MiniMax model answered a 900-token request. So a single probe cannot
+   tell you whether the day is spent, and the first version of
+   `scripts/check-models.sh` reported "the free tier is answering" on exactly
+   that evidence. What a run needs is enough *providers*, not enough requests -
+   `npm run models` now probes three of them.
+
+   **OpenRouter exposes no reset time.** `limit_reset` and `limit_remaining`
+   both come back null from `/api/v1/key`, so there is no hour to plan around
+   and asking is the only way to know.
 10. **Most free models do not answer.** Of 19 free chat models pinged, 6
     replied. Empty seats are normal and must be shown as failures.
 11. **The key belongs in `.env`, which is gitignored — not `.env.example`,
