@@ -12,14 +12,12 @@
 
 set -e
 
-# Long-form provider keys, and the two shapes a Supabase service-role key
-# comes in: the current sb_secret_ prefix and the legacy three-part JWT, which
-# is why a bare eyJ...eyJ...  triple is refused as well.
-#
-# The placeholders in .env.example are all far shorter than the minimum lengths
-# here, so the example file still commits cleanly. That is deliberate: a scan
-# that cannot tell a placeholder from a key gets switched off within a week.
-PATTERN='sk-or-v1-[A-Za-z0-9_-]{20,}|sk-ant-[A-Za-z0-9_-]{20,}|sk-proj-[A-Za-z0-9_-]{20,}|ghp_[A-Za-z0-9]{30,}|gho_[A-Za-z0-9]{30,}|AKIA[0-9A-Z]{16}|AIza[0-9A-Za-z_-]{30,}|sb_secret_[A-Za-z0-9_-]{20,}|sbp_[A-Za-z0-9]{20,}|eyJ[A-Za-z0-9_-]{10,}\.eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}'
+# The credential shapes come from security-patterns.yaml, which is the one
+# place they are listed. Three copies of the list would be three lists that
+# drift, and a shape caught on the way in but not on the way through is a shape
+# that is not caught.
+. "$(dirname -- "$0")/secret-patterns.sh"
+PATTERN=$(secret_patterns)
 
 # Only what is actually staged is scanned; a key sitting in an ignored .env is
 # not the problem this is guarding against.
