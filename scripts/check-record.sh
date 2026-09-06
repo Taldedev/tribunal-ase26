@@ -222,6 +222,12 @@ if [ "$FAILED" -ne 0 ]; then
     echo ""
     exit 1
 fi
-echo "The record is connected. S20, S21 and S22 are now verified in operation"
-echo "as well as in code, and nothing this check wrote is still there."
+echo "The record is connected: the schema is real, the key can write, and"
+echo "row-level security is doing its job. Nothing this check wrote is still"
+echo "there."
+echo ""
+echo "What that covers: the database layer of S20 and S21."
+echo "What it does not: /api/cases, which is the thing that will actually use"
+echo "these keys, and S22 - a refused save reported beside the verdicts - which"
+echo "this script has no screen to observe. For those, run the app: npm run dev."
 echo ""
